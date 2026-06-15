@@ -1,0 +1,3 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# rk — quick ryzkern (kernel exec authority) from Termux:  rk exec <bin> [args] | rk route <bin> | rk status | rk heal
+printf 'exec /data/local/tmp/ryzkern %q ' "$@" | sed 's/ $//' | { cat; echo; } | "$HOME/rish"

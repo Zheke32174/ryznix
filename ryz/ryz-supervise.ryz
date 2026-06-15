@@ -1,0 +1,24 @@
+// ryz-supervise.ryz — Ryznix RS (Reincarnation Server): s6/MINIX-style supervision.
+// Runs a service; on exit/failure, restarts it (bounded), logging each incarnation.
+//   ryz-supervise <max_restarts> <cmd...>
+fn main() {
+    let args = sys.argv()
+    if list.len(args) < 2 {
+        fmt.println("usage: ryz-supervise <max_restarts> <cmd...>")
+    } else {
+        let maxr = str.parse_int(args[0])
+        mut cmd = ""
+        mut i = 1
+        while i < list.len(args) { cmd = cmd + " " + args[i]; i = i + 1 }
+        mut n = 0
+        while n < maxr {
+            let inc = n + 1
+            fmt.println(fmt.sprintf("[RS] incarnation #{} : {}", inc, cmd))
+            fmt.shell("printf '%s RS incarnation #" + fmt.sprintf("{}", inc) + ": " + cmd + "\n' \"$(date -u +%FT%TZ)\" >> /data/local/tmp/ryzkern.log 2>/dev/null")
+            fmt.system(cmd)
+            fmt.println(fmt.sprintf("[RS] service exited; reincarnating ({}/{})", inc, maxr))
+            n = n + 1
+        }
+        fmt.println("[RS] max incarnations reached; supervision ended")
+    }
+}

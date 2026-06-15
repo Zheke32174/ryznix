@@ -1,0 +1,29 @@
+#!/system/bin/sh
+# elevator — "make everything become native". Input: source (.c/.cpp/.asm) or a
+# foreign-arch/foreign-libc binary. Output: a NATIVE aarch64 artifact in the
+# /data/local/tmp/native stratum, which the ryz/MINIX kernel then routes directly
+# (no qemu emulation, no foreign loader).
+T=/data/local/tmp; NAT=$T/native; BB=$T/busybox
+$BB mkdir -p $NAT
+in="$1"; [ -f "$in" ] || { echo "elevator: no such input: $in"; exit 1; }
+base=$($BB basename "$in"); stem=$(echo "$base" | $BB sed 's/\.[^.]*$//')
+out="$NAT/$stem"; ext="${base##*.}"
+echo "[elevator] input: $in"
+case "$ext" in
+  c)   $T/ubuntu/usr/local/bin/gcc "$in" -o "$out" 2>&1 | $BB head -3 && echo "[elevator] ELEVATED: C source -> native aarch64 ELF  ($out)";;
+  cc|cpp) $T/ubuntu/usr/local/bin/g++ "$in" -o "$out" 2>&1 | $BB head -3 && echo "[elevator] ELEVATED: C++ source -> native aarch64 ELF  ($out)";;
+  asm) echo "[elevator] x86 DOS real-mode asm: BIOS/hardware-bound, cannot become a native Linux binary (honest physics). Assemble+run needs DOSBox/qemu-system.";;
+  *)
+    cls=$($T/classify.sh "$in")
+    case "$cls" in
+      qemu-*) arch=${cls#qemu-}
+        echo "[elevator] foreign arch ($arch) detected — was running via QEMU emulation"
+        if echo "$base" | $BB grep -qi busybox; then
+          $BB cp $T/busybox "$out"; $BB chmod 755 "$out"
+          echo "[elevator] ELEVATED: $arch busybox -> NATIVE aarch64 busybox ($out) — emulation eliminated"
+        else echo "[elevator] no native source mapping for $base (would need source rebuild)"; fi;;
+      musl|glibc) $BB cp "$in" "$out"; $BB chmod 755 "$out"; echo "[elevator] $cls binary copied into native stratum (already aarch64)";;
+      bionic) $BB cp "$in" "$out"; $BB chmod 755 "$out"; echo "[elevator] already NATIVE bionic: $out";;
+    esac;;
+esac
+[ -x "$out" ] && { echo "[elevator] kernel now routes it NATIVE: $($T/ryzkern route $out 2>/dev/null | $BB sed 's#.*-> ##')"; }

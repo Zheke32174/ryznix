@@ -1,0 +1,19 @@
+// ryz-init.ryz — Ryznix init (PID1-style boot). Boots the microkernel subsystem:
+// strata config, DS + PM servers under RS restart-supervision. Runs from /data/local/tmp.
+fn main() {
+    let T = "/data/local/tmp"
+    let RUN = T + "/run"
+    fmt.shell("mkdir -p " + RUN + " " + T + "/etc/ryznix")
+    fmt.shell("printf 'ubuntu\t" + T + "/ubuntu/usr/bin\tUbuntu 24.04 glibc\ntermux\t" + T + "/termux/bin\tTermux bionic\nsystem\t/system/bin\tAndroid system\n' > " + T + "/etc/ryznix/strata.conf")
+    fmt.println("[ryz-init] Ryznix microkernel boot (stage 1: mounts/config)")
+    fmt.shell("rm -f " + RUN + "/ds.req " + RUN + "/pm.req")
+    fmt.println("[ryz-init] stage 2: starting servers under RS supervision")
+    fmt.shell("pkill -f ds-server 2>/dev/null; pkill -f pm-server 2>/dev/null; sleep 1")
+    fmt.shell("setsid sh -c 'while true; do " + T + "/ds-server; sleep 1; done' </dev/null >/dev/null 2>&1 &")
+    fmt.shell("setsid sh -c 'while true; do " + T + "/pm-server; sleep 1; done' </dev/null >/dev/null 2>&1 &")
+    fmt.shell("sleep 2")
+    fmt.println("[ryz-init] DS pid: " + str.strip(fmt.shell("pgrep -f ds-server | head -1")))
+    fmt.println("[ryz-init] PM pid: " + str.strip(fmt.shell("pgrep -f pm-server | head -1")))
+    fmt.println("[ryz-init] strata: " + str.strip(fmt.shell("grep -c . " + T + "/etc/ryznix/strata.conf")) + " (ubuntu/termux/system)")
+    fmt.println("[ryz-init] Ryznix microkernel subsystem UP")
+}

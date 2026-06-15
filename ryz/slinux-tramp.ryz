@@ -1,0 +1,20 @@
+// slinux-tramp.ryz — generic native trampoline (ryznative). Resolves own path via
+// /proc/$PPID/exe, execs the Ubuntu glibc loader on <self>.real with glibc wrappers
+// preloaded (nss_wrapper=user identity, resolv_wrapper=DNS) — SAFE here because the
+// trampoline only ever launches glibc binaries. Valid as a #! shebang interpreter.
+fn main() {
+    let self = str.strip(fmt.shell("readlink /proc/$PPID/exe 2>/dev/null"))
+    let real = self + ".real"
+    let LD = "/data/local/tmp/ubuntu/lib/ld-linux-aarch64.so.1"
+    let LP = "/data/local/tmp/ubuntu/lib/aarch64-linux-gnu:/data/local/tmp/ubuntu/lib:/data/local/tmp/ubuntu/usr/lib/aarch64-linux-gnu:/data/local/tmp/ubuntu/usr/lib"
+    let W = "/data/local/tmp/ubuntu/usr/lib/aarch64-linux-gnu"
+    let pre = "NSS_WRAPPER_PASSWD=/data/local/tmp/ubuntu/etc/passwd.nss NSS_WRAPPER_GROUP=/data/local/tmp/ubuntu/etc/group.nss RESOLV_WRAPPER_CONF=/data/local/tmp/ubuntu/etc/resolv.conf.nss LD_PRELOAD=" + W + "/libnss_wrapper.so:" + W + "/libresolv_wrapper.so"
+    let args = sys.argv()
+    mut cmd = pre + " PYTHONHOME=/data/local/tmp/ubuntu/usr PERL5LIB=/data/local/tmp/ubuntu/usr/share/perl/5.38:/data/local/tmp/ubuntu/usr/share/perl5 LD_LIBRARY_PATH=" + LP + " exec " + LD + " --library-path " + LP + " '" + real + "'"
+    mut i = 0
+    while i < list.len(args) {
+        cmd = cmd + " '" + args[i] + "'"
+        i = i + 1
+    }
+    fmt.system(cmd)
+}

@@ -1,0 +1,17 @@
+#!/system/bin/sh
+# elevator-re — REWRITE TO NATIVE via decompilation. binary -> Ghidra decompile -> C -> native aarch64 ELF.
+H=/data/data/com.termux/files/home/re-tools; T=/data/local/tmp
+in="$1"; stem=$(basename "$in" | sed 's/\.[^.]*$//')
+echo "[elevator-re] reverse-engineering $in -> native"
+rm -rf $H/ghproj_re; mkdir -p $H/ghproj_re
+export JAVA_HOME=$(dirname $(dirname $(readlink -f $(command -v java))))
+bash $H/ghidra_12.1.2_PUBLIC/support/analyzeHeadless $H/ghproj_re re -import "$in" -postScript decompile_export.py -scriptPath $H -deleteProject >/dev/null 2>&1
+if [ -f $H/decompiled.c ]; then
+  echo "[elevator-re] decompiled -> C ($(wc -l < $H/decompiled.c) lines)"
+  cat $H/ghidra_types.h $H/decompiled.c > $H/$stem.recompile.c
+  if clang $H/$stem.recompile.c -o $H/$stem.native 2>$H/$stem.cc.err; then
+    echo "[elevator-re] RECOMPILED to native: $H/$stem.native"
+  else
+    echo "[elevator-re] decompiled C needs manual cleanup (typical for Ghidra output):"; head -3 $H/$stem.cc.err
+  fi
+fi

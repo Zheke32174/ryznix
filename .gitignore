@@ -1,0 +1,6 @@
+*.zip
+*.tar
+*.deb
+*.apk
+ghidra_*/
+native/

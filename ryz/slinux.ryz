@@ -1,0 +1,5 @@
+// slinux.ryz — unified Super Linux entry (ryznative native ELF).
+// Sets merged bionic+glibc env, execs Ubuntu glibc bash.
+fn main() {
+    fmt.system("export U=/data/local/tmp/ubuntu T=/data/local/tmp; export LD_LIBRARY_PATH=/data/local/tmp/lib:/data/local/tmp/termux/lib:/data/local/tmp/system/usr/lib; export PATH=$U/usr/local/bin:$U/usr/bin:$U/bin:$U/usr/sbin:$U/sbin:$T/bin:$T/termux/bin:/system/bin:/system/xbin; export HOME=$U/root TERM=xterm-256color; if [ -f $U/super-profile.sh ]; then . $U/super-profile.sh; fi; exec $U/usr/bin/bash --norc --noprofile")
+}

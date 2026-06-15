@@ -1,0 +1,31 @@
+// ds-server.ryz — Ryznix DS (Data Store) server. MINIX-style: long-running, serves
+// requests over a FIFO (SENDREC-emulated message passing). Protocol per request line:
+//   <op> <replyfile> [key] [val]    op = set|get|list|ping|shutdown
+fn main() {
+    let RUN = "/data/local/tmp/run"
+    let REQ = RUN + "/ds.req"
+    let STORE = RUN + "/ds.store"
+    fmt.shell("mkdir -p " + RUN + "; [ -p " + REQ + " ] || mkfifo " + REQ + "; touch " + STORE)
+    fmt.shell("printf '%s DS server up pid %s\n' \"$(date -u +%FT%TZ)\" \"$$\" >> /data/local/tmp/ryzkern.log")
+    mut running = 1
+    while running == 1 {
+        let req = str.strip(fmt.shell("cat " + REQ))
+        if str.len(req) > 0 {
+            let p = str.split(req, " ")
+            let op = p[0]
+            let rep = p[1]
+            if op == "ping" {
+                fmt.shell("echo PONG > " + rep)
+            } else if op == "set" {
+                fmt.shell("grep -v '^" + p[2] + " ' " + STORE + " > " + STORE + ".t 2>/dev/null; echo '" + p[2] + " " + p[3] + "' >> " + STORE + ".t; mv " + STORE + ".t " + STORE + "; echo OK > " + rep)
+            } else if op == "get" {
+                fmt.shell("v=$(grep '^" + p[2] + " ' " + STORE + " | head -1 | cut -d' ' -f2-); echo \"${v:-<nil>}\" > " + rep)
+            } else if op == "list" {
+                fmt.shell("cat " + STORE + " > " + rep)
+            } else if op == "shutdown" {
+                fmt.shell("echo BYE > " + rep)
+                running = 0
+            }
+        }
+    }
+}

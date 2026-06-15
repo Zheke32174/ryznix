@@ -1,0 +1,82 @@
+// ryznix-kernel.ryz — Ryz/MINIX tmp-kernel: the execution authority for Super Linux.
+// Above the Android kernel (hardware/syscall/SELinux boundary). FINISHES the
+// bionic<->glibc bridge: routes every binary to the correct runtime, running glibc
+// binaries PRISTINE via the loader (no patchelf). MINIX servers: PM=route/exec,
+// RS=heal(reincarnation), identity, klog.
+
+fn klog(msg: string) {
+    fmt.shell("printf '%s %s\n' \"$(date -u +%FT%TZ)\" \"" + msg + "\" >> /data/local/tmp/ryzkern.log 2>/dev/null")
+}
+
+fn bin_class(path: string) -> string {
+    return str.strip(fmt.shell("/data/local/tmp/classify.sh '" + path + "'"))
+}
+
+fn shq(s: string) -> string {
+    return " '" + str.replace(s, "'", "'\\''") + "'"
+}
+
+fn route_exec(path: string, argstr: string) {
+    let cls = bin_class(path)
+    klog("route " + cls + " " + path)
+    let U = "/data/local/tmp/ubuntu"
+    let LP = U + "/lib/aarch64-linux-gnu:" + U + "/lib:" + U + "/usr/lib/aarch64-linux-gnu:" + U + "/usr/lib"
+    let W = U + "/usr/lib/aarch64-linux-gnu"
+    let pre = "NSS_WRAPPER_PASSWD=" + U + "/etc/passwd.nss NSS_WRAPPER_GROUP=" + U + "/etc/group.nss RESOLV_WRAPPER_CONF=" + U + "/etc/resolv.conf.nss SSL_CERT_FILE=" + U + "/etc/ssl/certs/ca-certificates.crt PYTHONHOME=" + U + "/usr"
+    let preload = W + "/libnss_wrapper.so " + W + "/libresolv_wrapper.so"
+    if str.startswith(cls, "qemu-") {
+        klog("route " + cls + " " + path)
+        fmt.system("exec /data/local/tmp/qemu/qemu/bin/" + cls + "-static '" + path + "'" + argstr)
+        return
+    }
+    if cls == "bionic" {
+        fmt.system("LD_LIBRARY_PATH=/data/local/tmp/lib:/data/local/tmp/termux/lib:/data/local/tmp/system/usr/lib exec '" + path + "'" + argstr)
+        return
+    }
+    if cls == "musl" {
+        klog("route musl " + path)
+        fmt.system("exec /data/local/tmp/musl/lib/ld-musl-aarch64.so.1 --library-path /data/local/tmp/musl/lib '" + path + "'" + argstr)
+        return
+    }
+    if str.startswith(cls, "glibc") {
+        fmt.system(pre + " exec " + U + "/lib/ld-linux-aarch64.so.1 --preload '" + preload + "' --library-path " + LP + " '" + path + "'" + argstr)
+        return
+    }
+    if cls == "script" { fmt.system("exec '" + path + "'" + argstr); return }
+    fmt.println("ryzkern: cannot route " + path + " (" + cls + ")")
+}
+
+fn main() {
+    let args = sys.argv()
+    if list.len(args) == 0 {
+        fmt.println("ryznix tmp-kernel v0.1 — subcommands: status | route <bin> | exec <bin> [args] | heal | id | log")
+    } else {
+        let cmd = args[0]
+        if cmd == "route" {
+            if list.len(args) < 2 { fmt.println("usage: ryzkern route <bin>") } else { fmt.println(fmt.sprintf("{} -> {}", args[1], bin_class(args[1]))) }
+        } else if cmd == "exec" {
+            if list.len(args) < 2 { fmt.println("usage: ryzkern exec <bin> [args]") } else {
+                mut a = ""
+                mut i = 2
+                while i < list.len(args) { a = a + shq(args[i]); i = i + 1 }
+                route_exec(args[1], a)
+            }
+        } else if cmd == "heal" {
+            fmt.println("RS reincarnation: re-trampoline non-PIE binaries")
+            fmt.print(fmt.shell("/data/local/tmp/bin/python3 /data/local/tmp/sweep.py 2>&1 | tail -2"))
+        } else if cmd == "id" {
+            fmt.print(fmt.shell("/data/local/tmp/ubuntu/usr/local/bin/whoami 2>&1; /data/local/tmp/ubuntu/usr/local/bin/id 2>&1"))
+        } else if cmd == "log" {
+            fmt.print(fmt.shell("tail -15 /data/local/tmp/ryzkern.log 2>/dev/null"))
+        } else if cmd == "status" {
+            fmt.println("=== Ryznix tmp-kernel — execution authority ===")
+            fmt.println("Android kernel : " + str.strip(fmt.shell("uname -rm")))
+            fmt.println("bionic runtime : " + str.strip(fmt.shell("test -e /system/bin/linker64 && echo present")))
+            fmt.println("glibc runtime  : " + str.strip(fmt.shell("test -e /data/local/tmp/ubuntu/lib/ld-linux-aarch64.so.1 && echo present")))
+            fmt.println("identity model : " + str.strip(fmt.shell("/data/local/tmp/ubuntu/usr/local/bin/whoami 2>/dev/null")))
+            fmt.println("ubuntu release : " + str.strip(fmt.shell("grep -o 'Ubuntu [0-9.]*' /data/local/tmp/ubuntu/etc/os-release | head -1")))
+        } else {
+            fmt.println("ryzkern: unknown command " + cmd)
+        }
+    }
+}

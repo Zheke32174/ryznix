@@ -1,0 +1,10 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ryznix-status — show the running Ryznix microkernel subsystem.
+cat <<'S' | "$HOME/rish"
+T=/data/local/tmp; BB=$T/busybox
+echo "=== Ryznix tmp-kernel ==="; $T/ryzkern status 2>/dev/null
+echo; echo "=== microkernel servers ==="
+ps -A 2>/dev/null | $BB grep -E "[d]s-server|[p]m-server" | $BB awk '{print "  RUNNING",$1,$NF}' || echo "  (servers down — run ~/ryznix to boot)"
+echo; echo "=== strata ==="; $BB cat $T/etc/ryznix/strata.conf 2>/dev/null
+echo; echo "=== recent kernel routing log ==="; $BB tail -5 $T/ryzkern.log 2>/dev/null
+S

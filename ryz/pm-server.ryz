@@ -1,0 +1,27 @@
+// pm-server.ryz — Ryznix PM (Process Manager) server. Routes exec requests across
+// strata via the tmp-kernel, over FIFO IPC. Protocol: <replyfile> <op> [args...]
+fn main() {
+    let RUN = "/data/local/tmp/run"
+    let REQ = RUN + "/pm.req"
+    fmt.shell("mkdir -p " + RUN + "; [ -p " + REQ + " ] || mkfifo " + REQ)
+    fmt.shell("printf '%s PM server up pid %s\n' \"$(date -u +%FT%TZ)\" \"$$\" >> /data/local/tmp/ryzkern.log")
+    mut running = 1
+    while running == 1 {
+        let req = str.strip(fmt.shell("cat " + REQ))
+        if str.len(req) > 0 {
+            let p = str.split(req, " ")
+            let rep = p[0]
+            let op = p[1]
+            if op == "ping" {
+                fmt.shell("echo PM-PONG > " + rep)
+            } else if op == "exec" {
+                mut cmd = "/data/local/tmp/ryzkern exec"
+                mut i = 2
+                while i < list.len(p) { cmd = cmd + " '" + p[i] + "'"; i = i + 1 }
+                fmt.shell(cmd + " > " + rep + " 2>&1")
+            } else if op == "shutdown" {
+                fmt.shell("echo BYE > " + rep); running = 0
+            }
+        }
+    }
+}

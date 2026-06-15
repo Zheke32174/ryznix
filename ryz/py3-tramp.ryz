@@ -1,0 +1,16 @@
+// py3-tramp.ryz — native bionic ELF trampoline. Runs Ubuntu glibc python3.12
+// via its loader. Being a real ELF, it works as a #! shebang interpreter
+// (shell-script wrappers cannot — the kernel won't nest #!).
+fn main() {
+    let LD  = "/data/local/tmp/ubuntu/lib/ld-linux-aarch64.so.1"
+    let LP  = "/data/local/tmp/ubuntu/lib/aarch64-linux-gnu:/data/local/tmp/ubuntu/lib:/data/local/tmp/ubuntu/usr/lib/aarch64-linux-gnu:/data/local/tmp/ubuntu/usr/lib"
+    let REAL = "/data/local/tmp/ubuntu/usr/bin/python3.12.real"
+    let args = sys.argv()
+    mut cmd = "PYTHONHOME=/data/local/tmp/ubuntu/usr LD_LIBRARY_PATH=" + LP + " exec " + LD + " --library-path " + LP + " " + REAL
+    mut i = 0
+    while i < list.len(args) {
+        cmd = cmd + " '" + args[i] + "'"
+        i = i + 1
+    }
+    fmt.system(cmd)
+}

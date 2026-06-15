@@ -1,0 +1,7 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ryznix-down — stop the Ryznix microkernel servers.
+cat <<'S' | "$HOME/rish"
+BB=/data/local/tmp/busybox
+$BB pkill -f ds-server 2>/dev/null; $BB pkill -f pm-server 2>/dev/null
+echo "Ryznix microkernel servers stopped."
+S
