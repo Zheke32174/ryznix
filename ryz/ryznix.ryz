@@ -1,0 +1,17 @@
+// ryznix.ryz — Ryznix OS front-door (ryznative native ELF). Boots the fused
+// bionic+glibc Super Linux governed by the ryz/MINIX tmp-kernel.
+fn main() {
+    fmt.println("")
+    fmt.println("  ____                      _      ")
+    fmt.println(" |  _ \\ _   _ _____ __ (_)_  __ ")
+    fmt.println(" | |_) | | | |_  / '_ \\| \\ \\/ / ")
+    fmt.println(" |  _ <| |_| |/ /| | | | |>  <  ")
+    fmt.println(" |_| \\_\\\\__, /___|_| |_|_/_/\\_\\ ")
+    fmt.println("        |___/  bionic+glibc fused, rootless, ryz/MINIX tmp-kernel")
+    fmt.println("")
+    fmt.print(fmt.shell("/data/local/tmp/ryzkern status 2>/dev/null"))
+    fmt.println("")
+    fmt.println("packages: " + str.strip(fmt.shell("ls /data/local/tmp/ubuntu/var/lib/slinux/installed.list 2>/dev/null | xargs cat 2>/dev/null | sort -u | wc -l")) + " ryz-installed + base")
+    fmt.println("kernel:   /data/local/tmp/ryzkern   |   shell: /data/local/tmp/slinux")
+    fmt.println("")
+}

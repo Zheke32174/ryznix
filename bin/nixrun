@@ -1,0 +1,4 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# nixrun — rootless Nix on Android (relocated store + loader trick, via Shizuku/rish).
+#   ~/nixrun nix eval --expr '1+1'   |   ~/nixrun nix-build foo.nix   |   ~/nixrun nix-store -q --references PATH
+printf 'exec /data/local/tmp/nix-boot/nixrun %s\n' "$*" | "$HOME/rish"

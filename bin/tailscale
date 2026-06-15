@@ -1,0 +1,33 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# tailscale — Ryznix-wired Tailscale control (rootless, goes around Android SELinux).
+# Runs tailscaled as shell uid (netlink works) with an ABSTRACT socket (@tailscaled,
+# no file → no SELinux bind-deny), RS-supervised by the microkernel. No root/proot.
+#   ~/tailscale          -> ensure daemon up + show status (and auth URL if needed)
+#   ~/tailscale up       -> (re)login with Tailscale SSH
+#   ~/tailscale <args>   -> pass through to the tailscale CLI
+RISH="$HOME/rish"
+ARGS="$*"
+{
+cat <<'BOOT'
+T=/data/local/tmp; BB=$T/busybox
+TSD=$T/ts/tailscale_1.98.4_arm64/tailscaled
+TS=$T/ts/tailscale_1.98.4_arm64/tailscale
+# stage from app-home if not present in tmp
+if [ ! -x "$TSD" ]; then echo "tailscale not staged in /data/local/tmp/ts (run the bridge first)"; exit 1; fi
+$BB mkdir -p $T/ts/state
+# ensure RS-supervised daemon is running
+if ! { ps -A 2>/dev/null || ps; } | $BB grep -q '[t]ailscaled'; then
+  setsid sh -c "while true; do $TSD --tun=userspace-networking --socket=@tailscaled --state=$T/ts/state/tailscaled.state --statedir=$T/ts/state >>$T/ts/tsd.log 2>&1; sleep 3; done" </dev/null >/dev/null 2>&1 &
+  $BB sleep 5
+fi
+BOOT
+if [ "$1" = "up" ]; then
+  echo 'timeout 40 $TS --socket=@tailscaled up --ssh --accept-routes --hostname=pleiades-phone'
+elif [ -n "$ARGS" ]; then
+  printf 'exec $TS --socket=@tailscaled %s\n' "$ARGS"
+else
+  echo 'echo "=== tailscaled: $({ ps -A 2>/dev/null||ps; }|$BB grep -c [t]ailscaled) proc (RS-supervised) ==="'
+  echo '$TS --socket=@tailscaled status 2>&1 | head -12'
+  echo '$TS --socket=@tailscaled ip 2>&1 | head -3'
+fi
+} | "$RISH"

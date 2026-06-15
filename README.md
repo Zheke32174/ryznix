@@ -43,3 +43,24 @@ No root. No proot. No bootloader unlock. Just the `shell` user (uid 2000) via Sh
 - the **elevator**: rebuild emulated/foreign binaries as native; RE → rewrite → native
 
 > Research / hobby project. Built across one (very long) session.
+
+## Conquests (the full realm)
+
+| Territory | Status |
+|---|---|
+| bionic (Termux) | ✅ native |
+| glibc (Ubuntu, ~290 pkgs) | ✅ ELF-converted / kernel-routed |
+| musl (Alpine) | ✅ via loader |
+| **x86_64** (foreign CPU) | ✅ via QEMU user-mode |
+| ryz/MINIX microkernel | ✅ PM/DS/RS servers running, supervised, IPC |
+| elevator (make-everything-native) | ✅ source→native, foreign→native, RE→rewrite→native |
+| RE arsenal | ✅ Ghidra 12 (analyzes), radare2, nasm, binutils-multiarch |
+| **Nix (rootless, builds derivations)** | ✅ loader-trick + relocated store + native builder — *no root/proot/userns* |
+| Tailscale (rootless) | ✅ shell-uid + abstract socket (SELinux workaround) |
+| Nix (full nixpkgs build) | ⚠️ frontier: elevator-as-builder unification |
+
+Every wall met was either gone *around* (microkernel, abstract sockets, loader tricks)
+or built *through* (Nix). The only true physics limits: locked bootloader (no uid 0),
+blocked user-namespaces, foreign-ABI without emulation.
+
+Launchers (Termux home): `~/ryznix` `~/ryznix-status` `~/rk` `~/nixrun` `~/tailscale`
