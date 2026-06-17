@@ -44,4 +44,10 @@ fi
 
 # normalize update-alternatives symlinks (unprefixed-abs targets don't resolve at the real root)
 if [ -f "$HOME/.ryz-altfix.sh" ]; then echo "  normalizing alternatives..."; bash "$HOME/.ryz-altfix.sh" 2>/dev/null | tail -1; fi
+# brew on PATH inside ryz-os: deploy the fakeroot-stripping brew wrapper (Homebrew breaks under
+# the uid-0 faked-tcp layer; ~/ryz-brew avoids it, but `brew` typed in a ryz-os shell needs this).
+if [ -f "$HOME/.ryzbrew-wrapper.sh" ]; then
+  cat "$HOME/.ryzbrew-wrapper.sh" | "$RISH" -c "cat > $U/usr/local/bin/brew; chmod 755 $U/usr/local/bin/brew; cp -f $U/usr/local/bin/brew $U/usr/local/bin/ryzbrew" 2>/dev/null
+  echo "  brew wrapper deployed"
+fi
 echo "ryzos-fixes: done. Validate with: ~/ryz-os 'apt-get install -y cron locales && dpkg --audit'"
