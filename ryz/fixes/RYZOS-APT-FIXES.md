@@ -17,3 +17,9 @@ default UA), extract the .so (`ar x` + `tar --use-compress-program="zstd -d"`), 
 `$U/usr/lib/aarch64-linux-gnu/` + make `.so.N` symlinks.
 
 Proven: `apt update` 0 errors; `apt purge sl && apt install sl` → fetch+unpack+configure clean.
+
+## 3. systemd-sysusers flush EINVAL (daemon packages hard-fail)
+`systemd-sysusers <pkg>.conf` → "Failed to flush /etc/.#group...: Invalid argument" (atomic-write
+fsync returns EINVAL on this fs) → postinst hard-fails for cron/dbus/etc. Fix: `ryz-sysusers-wrap.py`
+installed AS `$U/usr/bin/systemd-sysusers` (orig → .real); parses the sysusers.d format and creates
+users/groups directly (lock/flush-free). Proven: `apt install cron` configures clean.
