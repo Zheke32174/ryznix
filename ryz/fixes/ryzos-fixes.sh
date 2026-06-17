@@ -50,4 +50,12 @@ if [ -f "$HOME/.ryzbrew-wrapper.sh" ]; then
   cat "$HOME/.ryzbrew-wrapper.sh" | "$RISH" -c "cat > $U/usr/local/bin/brew; chmod 755 $U/usr/local/bin/brew; cp -f $U/usr/local/bin/brew $U/usr/local/bin/ryzbrew" 2>/dev/null
   echo "  brew wrapper deployed"
 fi
+# systemd/service BRIDGE: no real PID1/dbus here, so systemctl can't operate. Deploy a shim that
+# makes lifecycle verbs benign-succeed (postinsts pass) and start/stop actually run the unit's
+# ExecStart foreground w/ a pidfile (NO auto-restart -> no flap/heat). + service/invoke-rc.d/policy-rc.d.
+if [ -f "$HOME/.ryz-systemctl.py" ]; then
+  cat "$HOME/.ryz-systemctl.py" | "$RISH" -c "cat > $U/usr/local/bin/systemctl; chmod 755 $U/usr/local/bin/systemctl; mkdir -p $U/run/ryzsvc" 2>/dev/null
+  "$RISH" -c "printf '#!/bin/sh\nunit=\"\$1\"; verb=\"\${2:-status}\"; exec systemctl \"\$verb\" \"\$unit\"\n' > $U/usr/local/sbin/service; printf '#!/bin/sh\nwhile [ \"\${1#-}\" != \"\$1\" ]; do shift; done; systemctl \"\${2:-start}\" \"\$1\" 2>/dev/null; exit 0\n' > $U/usr/local/sbin/invoke-rc.d; printf '#!/bin/sh\nexit 0\n' > $U/usr/sbin/policy-rc.d; chmod 755 $U/usr/local/sbin/service $U/usr/local/sbin/invoke-rc.d $U/usr/sbin/policy-rc.d" 2>/dev/null
+  echo "  systemd/service bridge deployed"
+fi
 echo "ryzos-fixes: done. Validate with: ~/ryz-os 'apt-get install -y cron locales && dpkg --audit'"
