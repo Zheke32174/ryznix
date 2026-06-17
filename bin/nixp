@@ -1,0 +1,57 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# nixp — run rootless Nix with a REAL /nix/store (proot-bound) so the official binary
+# cache (paths/signatures encoded for /nix/store) substitutes. Without this the store
+# lives at /data/local/tmp/nix-boot/store and cache.nixos.org won't match → from-source only.
+#
+# Why proot (not fakechroot, not a VM): a literal /nix/store can't exist on Android's
+# read-only / and mount namespaces are kernel-blocked here. proot rebinds at the
+# ptrace/syscall layer — the one tool that can place the store at /nix/store rootlessly.
+# Surgical use: ONLY nix runs under proot; everything else stays native.
+#
+# Two glitches solved to get here:
+#   1. proot breaks glibc's ld-script following, so the loader hit glibc's `libc.so`
+#      (a GNU ld script, not ELF) → "invalid ELF header". Fix: a shim dir of real-ELF
+#      aliases (libc.so→libc.so.6, libm.so→libm.so.6) prepended to --library-path.
+#   2. the tmp-termux `tt` launcher LD_PRELOADs a bionic shim (libtmuxredir.so) that is
+#      ABI-incompatible with the glibc nix → unset LD_PRELOAD/LD_LIBRARY_PATH first.
+set -u
+TT="$HOME/tt"
+S=/data/local/tmp/nix-boot/store
+SHIM=/data/local/tmp/nix-boot/shim/lib
+VAR=/data/local/tmp/nix-boot/var
+HOMEDIR=/data/local/tmp/nix-boot/home
+CACERT="$S/9m6xbd8pcdb6c655b7lifhi5m1igi5rk-nss-cacert-3.101/etc/ssl/certs/ca-bundle.crt"
+GLIBC=p852ydpr8zlq0szh5fpvvbzzjaq2ydp5-glibc-2.39-52
+NIXPKG=30gnc15nig1awa11vii9yz3z8518rnr3-nix-2.24.10
+
+Q=""; for a in "$@"; do Q="$Q $(printf '%q' "$a")"; done
+
+exec "$TT" "unset LD_PRELOAD LD_LIBRARY_PATH
+# build the /nix/store-relative library path INSIDE tt (shell-uid can read the store);
+# shim dir first so the real-ELF libc.so alias wins over glibc's ld-script libc.so
+LP=/nix/store/shimlib
+for d in $S/*/lib; do LP=\"\$LP:/nix/store/\$(basename \$(dirname \$d))/lib\"; done
+export PROOT_TMP_DIR=\$PREFIX/var/tmp PROOT_NO_SECCOMP=1 \
+  PROOT_LOADER=\$PREFIX/libexec/proot/loader PROOT_LOADER_32=\$PREFIX/libexec/proot/loader32
+mkdir -p /data/local/tmp/nix-boot/tmp 2>/dev/null
+export HOME=/root USER=root TMPDIR=/data/local/tmp/nix-boot/tmp NIX_SSL_CERT_FILE=$CACERT
+# existing relocated state put the db at \$NIX_STATE_DIR/db; \$VAR maps to /nix/var under
+# proot, so point STATE_DIR at /nix/var (NOT the default /nix/var/nix) to reuse that db
+export NIX_STATE_DIR=/nix/var NIX_LOG_DIR=/nix/var/log/nix
+exec proot \
+  -b $S:/nix/store \
+  -b $SHIM:/nix/store/shimlib \
+  -b $VAR:/nix/var \
+  -b $HOMEDIR:/root \
+  -b /dev -b /proc -b /sys -b /data/local/tmp \
+  -b \$PREFIX/etc/resolv.conf:/etc/resolv.conf \
+  -w / \
+  /nix/store/$GLIBC/lib/ld-linux-aarch64.so.1 --library-path \"\$LP\" \
+  /nix/store/$NIXPKG/bin/nix \
+    --extra-experimental-features 'nix-command flakes' \
+    --option store /nix/store \
+    --option substituters 'https://cache.nixos.org' \
+    --option ssl-cert-file $CACERT \
+    --option use-sqlite-wal false \
+    --option build-users-group '' \
+    $Q 2>&1"

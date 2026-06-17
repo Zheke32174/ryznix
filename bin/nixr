@@ -1,0 +1,19 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# nixr — run the rootless relocated Nix (store at /data/local/tmp/nix-boot/store) as shell-uid.
+# The store closure (glibc, nix, deps) runs via its OWN loader + library-path — NO fakechroot,
+# NO tree-faking. Each Nix package references its complete from-source closure by absolute store
+# path, so there are no missing-lib / fstatat / dlopen walls. (The old nix-*.sh launchers were
+# missing HOME + NIX_* env, so nix died "cannot determine user's home directory".)
+#   nixr --version        nixr eval --expr '1+1'        nixr <any nix args>
+exec "$HOME/rish" -c '
+T=/data/local/tmp; S=$T/nix-boot/store
+export HOME=$T/nix-boot/home USER=shell
+export NIX_STORE_DIR=$S NIX_STATE_DIR=$T/nix-boot/var NIX_DATA_DIR=$T/nix-boot/share \
+       NIX_CONF_DIR=$T/nix-boot/etc NIX_LOG_DIR=$T/nix-boot/var/log/nix \
+       NIX_CACHE_HOME=$HOME/.cache NIX_CONFIG_HOME=$HOME/.config
+mkdir -p $HOME $NIX_STATE_DIR $NIX_CONF_DIR $NIX_LOG_DIR $HOME/.cache $HOME/.config 2>/dev/null
+LD=$S/p852ydpr8zlq0szh5fpvvbzzjaq2ydp5-glibc-2.39-52/lib/ld-linux-aarch64.so.1
+NIX=$S/30gnc15nig1awa11vii9yz3z8518rnr3-nix-2.24.10/bin/nix
+LP=""; for d in $S/*/lib; do LP="$LP$d:"; done
+export PATH=$T/nix-boot/store/30gnc15nig1awa11vii9yz3z8518rnr3-nix-2.24.10/bin:/system/bin
+exec "$LD" --library-path "$LP" "$NIX" '"$(printf '%q ' "$@")"
