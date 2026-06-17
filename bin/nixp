@@ -34,6 +34,10 @@ for d in $S/*/lib; do LP=\"\$LP:/nix/store/\$(basename \$(dirname \$d))/lib\"; d
 export PROOT_TMP_DIR=\$PREFIX/var/tmp PROOT_NO_SECCOMP=1 \
   PROOT_LOADER=\$PREFIX/libexec/proot/loader PROOT_LOADER_32=\$PREFIX/libexec/proot/loader32
 mkdir -p /data/local/tmp/nix-boot/tmp 2>/dev/null
+# pre-create nix's tarball/flake cache tree — libgit2 (flake fetch) does NOT mkdir -p its
+# objects/ dir, so 'nix build nixpkgs#…' dies 'failed to create temporary file …: No such
+# file or directory' without this. \$HOMEDIR maps to /root under proot.
+mkdir -p $HOMEDIR/.cache/nix/tarball-cache/objects $HOMEDIR/.cache/nix/tarball-cache/incoming 2>/dev/null
 export HOME=/root USER=root TMPDIR=/data/local/tmp/nix-boot/tmp NIX_SSL_CERT_FILE=$CACERT
 # existing relocated state put the db at \$NIX_STATE_DIR/db; \$VAR maps to /nix/var under
 # proot, so point STATE_DIR at /nix/var (NOT the default /nix/var/nix) to reuse that db
@@ -49,7 +53,6 @@ exec proot \
   /nix/store/$GLIBC/lib/ld-linux-aarch64.so.1 --library-path \"\$LP\" \
   /nix/store/$NIXPKG/bin/nix \
     --extra-experimental-features 'nix-command flakes' \
-    --option store /nix/store \
     --option substituters 'https://cache.nixos.org' \
     --option ssl-cert-file $CACERT \
     --option use-sqlite-wal false \

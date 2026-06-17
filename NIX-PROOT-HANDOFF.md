@@ -1,9 +1,11 @@
 # Rootless Nix with a real `/nix/store` (proot) — Handoff
 
 **Date:** 2026-06-17
-**Status:** Core capability PROVEN. Binary-cache fetching from cache.nixos.org works
-end-to-end (DNS → TLS → CA-verify → store-write) under a rootless proot bind. A full
-`nixpkgs#hello` install was mid-substitute when paused; re-run to finish (see below).
+**Status:** ✅ DONE. Full package install from cache.nixos.org works end-to-end under
+rootless proot: `nixp copy` fetched **bash 5.2.26 + deps (6.72 MiB)** into `/nix/store`
+and the substituted `bin/bash` RUNS (`$((6*7))` → 42). The "get what you need" capability
+is demonstrated. (`nixpkgs#hello` via the *flake* path also works but the nixpkgs git-import
+is pathologically slow under proot — prefer direct `nix copy <store-path>`; see notes.)
 
 ## Why this exists
 
@@ -46,6 +48,21 @@ relocated store at `/nix/store`. **Only `nix` runs under proot**; everything els
    `2>&1` INSIDE the proot/tt command (before crossing rish), or redirect nix stderr to a file
    under `/data/local/tmp` and read it back. **General rish gotcha — applies to all rish use.**
 
+4. **`--option store /nix/store` triggers chroot-store semantics — DON'T pass it.** It makes
+   nix treat the store as logical≠physical, so NAR restores (`copy`/`build`) silently write to
+   the wrong physical root and never land (while still registering a phantom db row). Tell:
+   trace says `not creating temporary root, store doesn't support GC` and `copy` "succeeds" but
+   the dir is absent. The default store under proot is already `/nix/store` and writes NARs
+   correctly. (A single-file `add-path` worked even with the bad option — only directory NAR
+   restore broke — which is what made it so confusing.)
+
+### Flake builds
+- `nix build nixpkgs#…` needs `/root/.cache/nix/tarball-cache/objects` pre-created (libgit2
+  won't mkdir -p) — nixp does this now.
+- The nixpkgs flake git-import (~40k files) is brutally slow under proot's per-syscall ptrace
+  tax (CPU is fine — it's syscall overhead, not heat). **Prefer `nix copy <store-path>` or a
+  pinned tarball over flake eval on this device.**
+
 ### State-dir + phantom-db trap
 - The relocated store's sqlite db lives at `$NIX_STATE_DIR/db` (NOT `$STATE/nix/db`). Under
   proot, `$VAR` (`nix-boot/var`) maps to `/nix/var`, so set `NIX_STATE_DIR=/nix/var`.
@@ -62,14 +79,17 @@ relocated store at `/nix/store`. **Only `nix` runs under proot**; everything els
   file+db consistent.
 - Network works on cellular (general internet); only the LAN laptop bridge needs home WiFi.
 
-## To finish the `hello` demo (next session)
+## Reproduce the end-to-end install proof
 ```
-nixp build 'nixpkgs#hello' --no-link --print-out-paths --option sandbox false --option max-jobs 1
+# fetch a real package + its closure straight from the official cache into /nix/store:
+nixp copy --from https://cache.nixos.org --no-check-sigs /nix/store/<hash>-<pkg>
+# then run its binary under proot (interp/RPATH already point into /nix/store):
+~/tt 'unset LD_PRELOAD LD_LIBRARY_PATH; export PROOT_*…; \
+  proot -b /data/local/tmp/nix-boot/store:/nix/store -b /dev -b /proc -b /data/local/tmp -w / \
+    /nix/store/<hash>-<pkg>/bin/<prog> …'
 ```
-The nixpkgs flake git-cache unpack is the slow one-time step (heavy on cellular — watch SoC
-heat; it churns CPU). It had downloaded the nix closure deps and was unpacking nixpkgs when
-paused. Once it prints a `/nix/store/…-hello-2.12.1` path and `$(that)/bin/hello` runs, the
-"get what you need" capability is demonstrated end-to-end.
+Verified with bash-5.2.26 (`2m7agxcdx1lxxb1j3s0ax08q25gpf42c-bash-5.2p26`): copied 5 paths
+(6.72 MiB) from cache.nixos.org, `bin/bash -c 'echo $((6*7))'` → `42` under proot.
 
 ## Layout
 ```
