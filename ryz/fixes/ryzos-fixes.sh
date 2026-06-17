@@ -38,4 +38,6 @@ if [ "$curlok" = OK ]; then
 else
   echo "  curl: BROKEN — re-fetch libnghttp2-14 / libssh-4 / libpsl5t64 (see RYZOS-APT-FIXES.md #2)"
 fi
-echo "ryzos-fixes: done. Validate with: ~/ryz-os 'apt-get install -y cron && dpkg --audit'"
+# normalize update-alternatives symlinks (unprefixed-abs targets don't resolve at the real root)
+if [ -f "$HOME/.ryz-altfix.sh" ]; then echo "  normalizing alternatives..."; bash "$HOME/.ryz-altfix.sh" 2>/dev/null | tail -1; fi
+echo "ryzos-fixes: done. Validate with: ~/ryz-os 'apt-get install -y cron locales && dpkg --audit'"

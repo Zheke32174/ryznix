@@ -23,3 +23,9 @@ Proven: `apt update` 0 errors; `apt purge sl && apt install sl` → fetch+unpack
 fsync returns EINVAL on this fs) → postinst hard-fails for cron/dbus/etc. Fix: `ryz-sysusers-wrap.py`
 installed AS `$U/usr/bin/systemd-sysusers` (orig → .real); parses the sysusers.d format and creates
 users/groups directly (lock/flush-free). Proven: `apt install cron` configures clean.
+
+## 4. update-alternatives symlinks don't resolve (awk/editor/pager broken)
+update-alternatives creates unprefixed in-container absolute symlinks; the kernel resolves them
+at the real root → "command not found" (broke `apt install locales`, needs awk). Fix:
+`ryz-altfix.sh` rewrites them to $U-prefixed absolute (2-pass, idempotent). Relative fails due to
+/bin→/usr/bin usrmerge. Also: `apt install mawk` (no awk shipped); man-db needs --force-confdef.
