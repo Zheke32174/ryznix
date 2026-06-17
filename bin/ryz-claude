@@ -1,0 +1,10 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ryz-claude — run Claude Code (the official glibc native binary) INSIDE ryz-os.
+# The linux-arm64 SEA binary needs glibc + /lib/ld-linux-aarch64.so.1, which the
+# embedded Ubuntu 24.04 second-OS provides. The binary is patchelf'd so its
+# PT_INTERP points at the REAL loader path ($U/lib/ld-linux-aarch64.so.1) — the
+# kernel resolves PT_INTERP at the real root, bypassing fakechroot (same fix used
+# for podman's conmon/crun). Proven: `claude --version` -> 2.1.170 (Claude Code).
+#   ryz-claude            -> interactive Claude Code session in the second OS
+#   ryz-claude <args...>  -> pass args (e.g. ryz-claude -p "hello", ryz-claude --version)
+exec "$HOME/ryz-os" "/usr/local/bin/claude $*"

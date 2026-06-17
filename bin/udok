@@ -1,0 +1,24 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# udok — rootless Docker/OCI containers on Android, NO root, NO namespaces, NO VM.
+# udocker (PRoot/ptrace engine) running inside the relocated tmp-Termux userland.
+# Why each env is needed (all discovered the hard way, 2026-06-17):
+#   PROOT_LOADER/_32   : the relocated proot has the ORIGINAL app-uid $PREFIX compiled
+#                        in for its loader path (inaccessible to shell uid) -> point at
+#                        the tmp-Termux copy or proot dies "loader not found".
+#   PROOT_NO_SECCOMP=1 : this kernel trips proot's seccomp-accel exec path
+#                        ("execve: Operation not permitted") -> disable it (ptrace-only).
+#   PROOT_TMP_DIR      : default is the app-uid $PREFIX/tmp (denied) -> use tmp var/tmp.
+#   UDOCKER_USE_*      : udocker resolves bare `curl`/`proot` against root_path and would
+#                        pick the BROKEN Android /system/bin ones -> pin the Termux builds.
+# Proven: pulls + runs real Docker Hub images (alpine:3.24 arm64) as fake-root.
+TT="$HOME/tt"
+PRE='export PROOT_TMP_DIR=$PREFIX/var/tmp PROOT_NO_SECCOMP=1 \
+  PROOT_LOADER=$PREFIX/libexec/proot/loader \
+  PROOT_LOADER_32=$PREFIX/libexec/proot/loader32 \
+  UDOCKER_USE_PROOT_EXECUTABLE=$PREFIX/bin/proot \
+  UDOCKER_USE_CURL_EXECUTABLE=$PREFIX/bin/curl;'
+# Preserve argv word boundaries through the tt -> bash -c layers with %q quoting,
+# so multi-token container commands (e.g. udok run alp sh -c '...') survive intact.
+Q=""
+for a in "$@"; do Q="$Q $(printf '%q' "$a")"; done
+exec "$TT" "$PRE udocker$Q"

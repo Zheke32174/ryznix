@@ -1,0 +1,31 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ryz-selftest — one-shot regression check for the ryz-os / tmp-Termux capabilities.
+# Each capability genuinely works standalone; the rish/shiriguru bridge is FLAKY under
+# rapid sequential heavy invocations (proven: which checks fail varies run-to-run), so
+# every check retries up to 3x and counts PASS if ANY attempt matches. No operator input.
+pass=0; fail=0
+# ck NAME WANT CMD...  — run CMD (stdin from /dev/null so rish can't eat the script), retry 3x
+ck(){
+  local name="$1" want="$2"; shift 2
+  local got ok=0 i
+  for i in 1 2 3; do
+    got="$("$@" </dev/null 2>/dev/null)"
+    if printf '%s' "$got" | python3 -c "import sys;sys.exit(0 if '''$want''' in sys.stdin.read() else 1)" 2>/dev/null; then ok=1; break; fi
+  done
+  if [ "$ok" = 1 ]; then printf '  PASS  %s\n' "$name"; pass=$((pass+1))
+  else printf '  FAIL  %s  (wanted: %s)\n' "$name" "$want"; fail=$((fail+1)); fi
+}
+echo "== ryz-selftest =="
+ck "claude-in-ryznix (2.1.x)"        "Claude Code"   ~/ryz-claude --version
+ck "rootless-docker udok run (uid=0)" "uid=0(root)"  ~/udok run alp /bin/busybox id
+ck "perl XS modules"                 "XS=55"         ~/tt 'perl -MList::Util=sum -e "print q{XS=}, sum(1..10)"'
+ck "C build toolchain"               "CC_OK"         ~/tt 'cd $PREFIX/var/tmp; printf "int main(){return 0;}" > _st.c && clang _st.c -o _st.bin && ./_st.bin && echo CC_OK'
+ck "ryz-os apt"                      "apt"           ~/ryz-os 'apt-get --version 2>/dev/null | head -1'
+ck "ryz-os homebrew"                 "Homebrew"      ~/ryz-brew --version
+# integrity check is local (no bridge) — inline
+if ssh-keygen -Y verify -f ~/.signify/allowed_signers -I ryznix-integrity@phone -n ryznix-integrity \
+     -s ~/.signify/infra.manifest.sig < ~/.signify/infra.manifest >/dev/null 2>&1; then
+  printf '  PASS  %s\n' "integrity manifest signed"; pass=$((pass+1))
+else printf '  FAIL  %s\n' "integrity manifest signed"; fail=$((fail+1)); fi
+echo "== $pass passed, $fail failed =="
+[ "$fail" -eq 0 ]
