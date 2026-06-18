@@ -1,0 +1,19 @@
+# Proof: AeSH shell
+Date: YYYY-MM-DD
+Environment: <REDACTED_DEVICE_CLASS>
+
+## Command
+```bash
+aesh_native -c "help"
+aesh_native -c "pwd"
+aesh_native -c "status"
+```
+
+## Output
+```text
+<PASTE REDACTED OUTPUT HERE>
+```
+
+## Notes
+- Proves the shell starts and dispatches basic commands.
+- Does not prove interactive editing, job control, or PID 1 behavior.
