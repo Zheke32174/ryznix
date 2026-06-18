@@ -6,6 +6,14 @@ in **ryz** (our own language, compiled to native ELF via `ryznative`).
 
 No root. No proot. No bootloader unlock. Just the `shell` user (uid 2000) via Shizuku/rish.
 
+## Start here
+
+- **Portfolio overview:** [SHOWCASE.md](SHOWCASE.md)
+- **Proof-log guide:** [docs/proof/README.md](docs/proof/README.md)
+- **Secret/redaction checklist:** [docs/publication-checklist.md](docs/publication-checklist.md)
+
+This repo is a public-facing showcase for the Ryznix side of the broader RYZ ecosystem. Some supporting projects and raw device logs remain private because they may contain host paths, tokens, tunnel details, device identifiers, or operator-only workflow notes.
+
 ## What it is
 
 ```
