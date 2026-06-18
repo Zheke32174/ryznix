@@ -1,0 +1,20 @@
+# Proof: RYZ toolchain
+Date: YYYY-MM-DD
+Environment: <REDACTED_DEVICE_CLASS>
+
+## Command
+```bash
+ryzc examples/hello.ryz
+ryznative.py examples/hello.ryz -o /tmp/hello-ryz
+/tmp/hello-ryz
+```
+
+## Output
+```text
+<PASTE REDACTED OUTPUT HERE>
+```
+
+## Notes
+- Proves the interpreter and native compiler path both run.
+- Does not prove full language coverage.
+- Add test-suite output separately.
