@@ -4,3 +4,30 @@
 *.apk
 ghidra_*/
 native/
+
+# Local secrets / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+known_hosts
+*_token*
+*_secret*
+
+# Raw operational logs stay local; commit only redacted proof logs.
+docs/proof/raw/
+*.raw.log
+*.raw.txt
+*.pcap
+*.pcapng
+
+# Local/runtime noise
+.cache/
+.tmp/
+tmp/
+*.log
