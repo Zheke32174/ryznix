@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version/tag, for example v0.1.0'
+        required: false
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then VERSION="v0.1.0"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          NAME="${GITHUB_REPOSITORY#*/}"
+          IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]'):latest"
+          cat > RELEASE_NOTES.md <<EOF
+          # $NAME ${{ steps.version.outputs.version }}
+
+          Public showcase release for $NAME.
+
+          GitHub Package:
+          \`$IMAGE\`
+
+          GitHub also provides source ZIP and source tarball assets automatically on this Release.
+          EOF
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release edit "$VERSION" --target "$GITHUB_SHA" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$VERSION" --target "$GITHUB_SHA" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
+          fi
