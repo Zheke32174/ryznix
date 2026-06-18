@@ -1,0 +1,18 @@
+# Proof: Ryznix status
+Date: YYYY-MM-DD
+Environment: <REDACTED_DEVICE_CLASS>
+
+## Command
+```bash
+/data/local/tmp/ryznix
+/data/local/tmp/ryzkern status
+```
+
+## Output
+```text
+<PASTE REDACTED OUTPUT HERE>
+```
+
+## Notes
+- Proves the Ryznix front door and tmp-kernel status path run.
+- Redact device names, usernames, hostnames, IP addresses, and private paths.
