@@ -1,8 +1,9 @@
 # Ryznix
 
 A rootless, multi-libc, multi-architecture Linux subsystem that runs entirely from
-`/data/local/tmp` on an **unrooted Android phone** — governed by a microkernel written
-in **ryz** (our own language, compiled to native ELF via `ryznative`).
+`/data/local/tmp` on an **unrooted Android phone**. Ryznix is part of the broader
+RYZ ecosystem and uses a microkernel/control-plane layer written in **RYZ**, a
+custom systems language whose main toolchain repo is currently private.
 
 No root. No proot. No bootloader unlock. Just the `shell` user (uid 2000) via Shizuku/rish.
 
@@ -12,7 +13,7 @@ No root. No proot. No bootloader unlock. Just the `shell` user (uid 2000) via Sh
 - **Proof-log guide:** [docs/proof/README.md](docs/proof/README.md)
 - **Secret/redaction checklist:** [docs/publication-checklist.md](docs/publication-checklist.md)
 
-This repo is a public-facing showcase for the Ryznix side of the broader RYZ ecosystem. Some supporting projects and raw device logs remain private because they may contain host paths, tokens, tunnel details, device identifiers, or operator-only workflow notes.
+This repo is the public-facing showcase for the Ryznix runtime/subsystem work. Some supporting projects, the main RYZ language/toolchain repo, and raw device logs remain private until they are ready for release and have been reviewed for secrets, host paths, device identifiers, and operational notes.
 
 ## What it is
 
