@@ -60,21 +60,25 @@ README.md
 SUPERLINUX-HOWTO.md
 ```
 
-## Public/private recommendation
+## Current public/private recommendation
 
-Public candidates after cleanup:
+Public now:
 
-- `ryz` — best candidate for public showcase, but only after missing docs are fixed and any local artifacts are removed.
-- `ryz-shell` — safe public candidate if it only contains AeSH source/docs.
-- `ryz-distro` — safe public candidate if clearly marked experimental/roadmap.
-- `ryznix` — already public; keep raw proof logs out and commit only redacted docs.
-- `ai-workstation-project` — public candidate after updating stale hardware/current-status details.
+- `ryznix` — public runtime/subsystem showcase; keep raw proof logs out and commit only redacted docs.
+- `ryz-shell` — public AeSH shell showcase; should not assume the private RYZ repo is visible.
 
-Keep private:
+Private now:
 
+- `ryz` — main language/toolchain repo; keep private until intentionally prepared for release.
+- `ryz-distro` — roadmap/planning repo; keep private until backed by reproducible public proof logs.
 - `ryznix-private` — contains operational memory and device-specific notes.
 - `undergrowth` — contains private agent architecture, OAuth/device-flow details, and credential-boundary notes.
 - `understory` — operational trunk; keep private.
 - `system-soul-backup` — runtime-state snapshots; keep private.
 - `zub` — personal connection-house repo; keep private.
 - evidence/log/archive repos — keep private.
+
+Possible later public candidates, after separate review:
+
+- `ai-workstation-project` — only after stale hardware/current-status details are updated.
+- `ryz` — only when you intentionally decide the language/toolchain source is ready for release.
