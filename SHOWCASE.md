@@ -10,6 +10,13 @@ The strongest portfolio story is:
 
 > A custom systems language and toolchain used to build real system software: an interpreter, native compiler, linter, standard library, POSIX-style tools, an interactive shell, and experimental Linux/Android runtime layers.
 
+## Reviewer links
+
+- [README.md](README.md) — project front door
+- [docs/proof/README.md](docs/proof/README.md) — how proof logs should be captured and redacted
+- [docs/publication-checklist.md](docs/publication-checklist.md) — what is safe to publish and what stays private
+- [scripts/check-secrets.sh](scripts/check-secrets.sh) — lightweight local secret-pattern scan before publishing proof material
+
 ## Flagship Work
 
 ### 1. RYZ — custom systems language
