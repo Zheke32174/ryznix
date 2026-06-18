@@ -1,0 +1,16 @@
+FROM alpine:3.20
+
+ARG REPO_NAME="ryznix"
+ARG SOURCE_URL="https://github.com/Zheke32174/ryznix"
+ARG VERSION="0.1.0"
+
+LABEL org.opencontainers.image.title="ryznix"
+LABEL org.opencontainers.image.description="Ryznix public showcase source package for GitHub Packages."
+LABEL org.opencontainers.image.source="$SOURCE_URL"
+LABEL org.opencontainers.image.version="$VERSION"
+
+WORKDIR /opt/package
+COPY . /opt/package
+RUN chmod -R a+rX /opt/package
+
+CMD ["sh", "-lc", "echo 'ryznix package mounted at /opt/package'; find /opt/package -maxdepth 2 -type f | sort | head -200"]
