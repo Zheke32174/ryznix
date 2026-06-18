@@ -1,0 +1,18 @@
+# Proof: Ryznix self-test
+Date: YYYY-MM-DD
+Environment: <REDACTED_DEVICE_CLASS>
+
+## Command
+```bash
+bin/ryz-selftest
+```
+
+## Output
+```text
+<PASTE REDACTED OUTPUT HERE>
+```
+
+## Notes
+- Proves the current self-test battery result.
+- Include pass/fail counts.
+- If a check is flaky, note it plainly instead of hiding it.
