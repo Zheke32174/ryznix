@@ -4,7 +4,9 @@ This is a public-facing map of the broader RYZ / Ryznix project family. It is wr
 
 ## Summary
 
-RYZ / Ryznix is an experimental systems-engineering stack centered on a custom programming language, native toolchain, shell, coreutils, and Linux-like runtime environments across constrained platforms.
+Ryznix is the public showcase for a broader experimental systems-engineering stack centered on a custom programming language, native toolchain, shell, coreutils, and Linux-like runtime environments across constrained platforms.
+
+The main RYZ language/toolchain repository is currently private. Public reviewers can still see the surrounding artifacts: Ryznix as the runtime/subsystem showcase and AeSH as a shell written in RYZ.
 
 The strongest portfolio story is:
 
@@ -19,9 +21,11 @@ The strongest portfolio story is:
 
 ## Flagship Work
 
-### 1. RYZ — custom systems language
+### 1. RYZ — private language/toolchain
 
-RYZ is a compiled systems-oriented programming language. The toolchain includes:
+RYZ is a compiled systems-oriented programming language. The main language/toolchain repo is private while it is being prepared and reviewed.
+
+The private toolchain includes:
 
 - `ryzc` — tree-walk interpreter
 - `ryznative.py` — native compiler / transpiler path producing ELF binaries through C and GCC
@@ -29,11 +33,11 @@ RYZ is a compiled systems-oriented programming language. The toolchain includes:
 - standard library modules for formatting, strings, paths, lists, JSON, math, logging, tests, and system interaction
 - regression tests across interpreter and native backends
 
-Why it matters: this is not only a syntax experiment. RYZ is used to build real userland tools.
+Why it matters: RYZ is not only a syntax experiment. It is used to build real userland tools and runtime components.
 
-### 2. AeSH — shell written in RYZ
+### 2. AeSH — public shell written in RYZ
 
-AeSH is an interactive shell written in the RYZ language. It is designed as both a command dispatcher and a proving ground for the language/runtime.
+AeSH is an interactive shell written in the RYZ language. It is designed as both a command dispatcher and a proving ground for shell/userland behavior.
 
 Notable capabilities:
 
@@ -48,7 +52,7 @@ Why it matters: writing a shell in the custom language proves the language can s
 
 ### 3. RYZ coreutils and userland tools
 
-The RYZ userland includes POSIX-style core utilities and pipeline helpers written in RYZ and compiled to native binaries.
+The private RYZ userland includes POSIX-style core utilities and pipeline helpers written in RYZ and compiled to native binaries.
 
 Representative tools include:
 
@@ -60,7 +64,7 @@ Representative tools include:
 
 Why it matters: a language becomes more credible when it ships its own usable tools.
 
-### 4. Ryznix — Android-hosted Linux-like subsystem
+### 4. Ryznix — public Android-hosted Linux-like subsystem
 
 Ryznix is an experimental rootless Linux-like subsystem running from `/data/local/tmp` under Android shell UID 2000. It explores how far a Linux userland can be pushed without conventional root, bootloader unlock, or full VM support.
 
@@ -75,9 +79,9 @@ Major themes:
 
 Why it matters: this demonstrates systems debugging, runtime constraints, package management, ABI routing, Android/SELinux boundary work, and service orchestration under unusual constraints.
 
-### 5. ryzOS / RYZ Distro
+### 5. ryzOS / RYZ Distro — private roadmap
 
-ryzOS is the experimental distro direction for the RYZ ecosystem. It aims to connect the language, shell, coreutils, package tooling, and boot/runtime experiments into a coherent Linux-like userland and eventual bootable system.
+ryzOS is the experimental distro direction for the RYZ ecosystem. The distro planning repo is private because it contains longer-horizon roadmap material and should not be presented as a finished public distribution.
 
 Current framing:
 
@@ -141,11 +145,11 @@ Shorter version:
 
 ## What to Review First
 
-1. **RYZ language/toolchain** — language, compiler, interpreter, linter, stdlib, tests.
-2. **AeSH shell** — proof that RYZ can build real interactive system software.
-3. **Ryznix** — constrained Android/Linux runtime and package-management proof.
-4. **ryzOS / distro docs** — long-horizon operating-system direction.
-5. **Agent/cluster docs** — architecture and workflow discipline.
+1. **Ryznix** — public constrained Android/Linux runtime and package-management proof.
+2. **AeSH shell** — public proof that RYZ can build real interactive system software.
+3. **RYZ language/toolchain summary** — private for now, described here at a high level.
+4. **ryzOS / distro direction** — private roadmap, not a finished public distribution.
+5. **Agent/cluster docs** — private architecture and workflow discipline.
 
 ## What This Demonstrates
 
