@@ -1,0 +1,20 @@
+# Proof: package tool demo
+Date: YYYY-MM-DD
+Environment: <REDACTED_DEVICE_CLASS>
+
+## Command
+```bash
+apt-get --version
+apt-cache policy hello
+hello
+```
+
+## Output
+```text
+<PASTE REDACTED OUTPUT HERE>
+```
+
+## Notes
+- Proves package tooling is callable in the target environment.
+- Use harmless demo packages only.
+- Redact paths, hostnames, usernames, IP addresses, and device identifiers.
