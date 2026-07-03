@@ -1,0 +1,51 @@
+// pm-server.ryz — Ryznix process manager (PM), pure RYZ on native ipc.* sockets.
+// Abstract endpoint @ryznix.pm. Runs as shell uid -> sees/steers all processes.
+// Protocol: PING | PS | INFO <pid> | KILL <pid> [sig] | SPAWN <cmd...>
+
+fn handle(msg: string) -> string {
+    let m = str.strip(msg)
+    let parts = str.split(m, " ")
+    let n = list.len(parts)
+    if n == 0 { return "ERR empty" }
+    let cmd = list.get(parts, 0)
+    if cmd == "PING" { return "PONG" }
+    if cmd == "PS" { return fmt.shell("ps -A -o pid,ppid,user,args 2>/dev/null || ps 2>/dev/null") }
+    if cmd == "INFO" {
+        if n < 2 { return "ERR need pid" }
+        let pid = list.get(parts, 1)
+        return fmt.shell(fmt.sprintf("cat /proc/{}/status 2>/dev/null | head -24", pid))
+    }
+    if cmd == "KILL" {
+        if n < 2 { return "ERR need pid" }
+        let pid = list.get(parts, 1)
+        mut sig = "TERM"
+        if n >= 3 { sig = list.get(parts, 2) }
+        return str.strip(fmt.shell(fmt.sprintf("kill -{} {} 2>&1 && echo OK", sig, pid)))
+    }
+    if cmd == "SPAWN" {
+        if n < 2 { return "ERR need cmd" }
+        mut c = ""
+        mut i = 1
+        while i < n {
+            if i > 1 { c = c + " " }
+            c = c + list.get(parts, i)
+            i = i + 1
+        }
+        return str.strip(fmt.shell(fmt.sprintf("setsid sh -c '{}' </dev/null >/dev/null 2>&1 & echo SPAWNED $!", c)))
+    }
+    return "ERR unknown"
+}
+
+fn main() {
+    let fd = ipc.listen("ryznix.pm")
+    if fd < 0 {
+        fmt.println("pm-server: listen @ryznix.pm failed")
+        return
+    }
+    while 1 == 1 {
+        let c = ipc.accept(fd)
+        let msg = ipc.recv(c)
+        ipc.send(c, handle(msg))
+        ipc.close(c)
+    }
+}

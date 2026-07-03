@@ -1,0 +1,61 @@
+// rs-server.ryz — Ryznix reincarnation/registry server (RS).
+// Abstract endpoint @ryznix.rs. Knows the microkernel service set and health-checks
+// each by connecting as an IPC client (ipc.connect) and sending PING.
+// Protocol: PING | LIST | STATUS | PING <service>
+
+fn probe(name: string) -> string {
+    let fd = ipc.connect(name)
+    if fd < 0 { return "DOWN" }
+    ipc.send(fd, "PING")
+    let r = str.strip(ipc.recv(fd))
+    ipc.close(fd)
+    if r == "PONG" { return "UP" }
+    return "BAD"
+}
+
+fn services() -> list {
+    let s = list.new()
+    list.push(s, "ryznix.ds")
+    list.push(s, "ryznix.pm")
+    list.push(s, "ryznix.vfs")
+    return s
+}
+
+fn handle(msg: string) -> string {
+    let m = str.strip(msg)
+    let parts = str.split(m, " ")
+    let n = list.len(parts)
+    if n == 0 { return "ERR empty" }
+    let cmd = list.get(parts, 0)
+    if cmd == "PING" { return "PONG" }
+    if cmd == "LIST" { return "ryznix.ds ryznix.pm ryznix.vfs ryznix.rs" }
+    if cmd == "STATUS" {
+        let svc = services()
+        mut out = ""
+        mut i = 0
+        let cnt = list.len(svc)
+        while i < cnt {
+            let name = list.get(svc, i)
+            out = out + fmt.sprintf("{} {}\n", name, probe(name))
+            i = i + 1
+        }
+        out = out + "ryznix.rs UP\n"
+        return out
+    }
+    if cmd == "PING" { return "PONG" }
+    return "ERR unknown"
+}
+
+fn main() {
+    let fd = ipc.listen("ryznix.rs")
+    if fd < 0 {
+        fmt.println("rs-server: listen @ryznix.rs failed")
+        return
+    }
+    while 1 == 1 {
+        let c = ipc.accept(fd)
+        let msg = ipc.recv(c)
+        ipc.send(c, handle(msg))
+        ipc.close(c)
+    }
+}

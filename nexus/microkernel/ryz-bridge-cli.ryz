@@ -1,0 +1,34 @@
+// ryz-bridge-cli.ryz — app-uid client for the Ryznix privilege bridge (loopback TCP :9770).
+// Runs in Termux / a proot full-linux userland; reaches the shell-uid bridge over TCP.
+//   ryz-bridge-cli <VERB> <args...>     (prepends the token from ~/.ryznix/bridge.token)
+//   ryz-bridge-cli PING                 (no token needed)
+
+fn main() {
+    let args = sys.argv()
+    let n = list.len(args)
+    if n == 0 {
+        fmt.println("usage: ryz-bridge-cli <PING | <VERB> <args...>>")
+        return
+    }
+    let fd = ipc.connect_tcp(9770)
+    if fd < 0 {
+        fmt.println("ryz-bridge-cli: cannot reach bridge on 127.0.0.1:9770")
+        return
+    }
+    mut msg = ""
+    let first = list.get(args, 0)
+    if first != "PING" {
+        // prepend the shared token so the bridge authorizes the verb
+        let tok = str.strip(fmt.shell("cat $HOME/.ryznix/bridge.token 2>/dev/null"))
+        msg = tok
+    }
+    mut i = 0
+    while i < n {
+        if str.len(msg) > 0 { msg = msg + " " }
+        msg = msg + list.get(args, i)
+        i = i + 1
+    }
+    ipc.send(fd, msg)
+    fmt.print(ipc.recv(fd))
+    ipc.close(fd)
+}

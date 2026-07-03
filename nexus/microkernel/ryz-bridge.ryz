@@ -1,0 +1,72 @@
+// ryz-bridge.ryz — Ryznix privilege bridge (runs as shell uid) on loopback TCP :9770.
+// Gives app-uid clients (Termux / a proot "full linux") access to shell-uid powers
+// and the abstract-socket microkernel, which SELinux otherwise blocks them from.
+// Wire (one line): "<token> <VERB> <args...>"   token = /data/local/tmp/ryznix/bridge.token
+//   PING                 -> PONG                  (no token, liveness)
+//   DS|PM|VFS|RS <req>   -> proxied to @ryznix.<svc>, reply returned
+//   AM  <args>           -> am <args>             (activity manager)
+//   PKG <args>           -> pm <args>             (package manager)
+//   SH  <cmd...>         -> arbitrary shell (shell uid) — token-gated, powerful
+
+fn token() -> string {
+    return str.strip(fmt.shell("cat /data/local/tmp/ryznix/bridge.token 2>/dev/null"))
+}
+
+fn proxy(name: string, req: string) -> string {
+    let fd = ipc.connect(name)
+    if fd < 0 { return "ERR service down" }
+    ipc.send(fd, req)
+    let r = ipc.recv(fd)
+    ipc.close(fd)
+    return r
+}
+
+fn rest_from(parts: list, start: i64) -> string {
+    let n = list.len(parts)
+    mut out = ""
+    mut i = start
+    while i < n {
+        if i > start { out = out + " " }
+        out = out + list.get(parts, i)
+        i = i + 1
+    }
+    return out
+}
+
+fn handle(msg: string) -> string {
+    let m = str.strip(msg)
+    let parts = str.split(m, " ")
+    let n = list.len(parts)
+    if n == 0 { return "ERR empty" }
+    let first = list.get(parts, 0)
+    if first == "PING" { return "PONG" }
+    if n < 2 { return "ERR need token+verb" }
+    let tok = token()
+    if str.len(tok) == 0 { return "ERR no bridge token" }
+    if first != tok { return "ERR auth" }
+    let verb = list.get(parts, 1)
+    let args = rest_from(parts, 2)
+    if verb == "DS"  { return proxy("ryznix.ds",  args) }
+    if verb == "PM"  { return proxy("ryznix.pm",  args) }
+    if verb == "VFS" { return proxy("ryznix.vfs", args) }
+    if verb == "RS"  { return proxy("ryznix.rs",  args) }
+    if verb == "AM"  { return fmt.shell(fmt.sprintf("am {} 2>&1", args)) }
+    if verb == "PKG" { return fmt.shell(fmt.sprintf("pm {} 2>&1", args)) }
+    if verb == "SH"  { return fmt.shell(fmt.sprintf("{} 2>&1", args)) }
+    return "ERR unknown verb"
+}
+
+fn main() {
+    fmt.shell("mkdir -p /data/local/tmp/ryznix")
+    let fd = ipc.listen_tcp(9770)
+    if fd < 0 {
+        fmt.println("ryz-bridge: listen tcp 9770 failed")
+        return
+    }
+    while 1 == 1 {
+        let c = ipc.accept(fd)
+        let msg = ipc.recv(c)
+        ipc.send(c, handle(msg))
+        ipc.close(c)
+    }
+}

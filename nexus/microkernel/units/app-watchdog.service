@@ -1,0 +1,4 @@
+Description=Ryznix app self-heal watchdog (Shizuku/Stellar/Axeron)
+ExecStart=/data/local/tmp/app-watchdog
+Restart=always
+PidMarker=app-watchdog

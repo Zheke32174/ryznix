@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ryznix Nexus</title>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#111826; --panel2:#0d1420; --line:#1e2a3a;
+    --ink:#d7e2f0; --dim:#7a8ba3; --acc:#3ddc97; --acc2:#4aa3ff; --warn:#ffb454; --bad:#ff5d62;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  body{display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(180deg,#101827,#0b111c);
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  header .logo{font-weight:800;letter-spacing:.5px}
+  header .logo b{color:var(--acc)}
+  header .mode{font:600 11px var(--mono);padding:3px 8px;border:1px solid var(--line);border-radius:20px;color:var(--dim)}
+  header .mode.ok{color:var(--acc);border-color:#1c3a2e}
+  header .mode.bad{color:var(--bad);border-color:#3a1c1e}
+  header .sp{flex:1}
+  header button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+  nav{display:flex;gap:4px;padding:6px 8px;overflow-x:auto;background:var(--panel2);border-bottom:1px solid var(--line);flex:0 0 auto}
+  nav button{white-space:nowrap;background:transparent;color:var(--dim);border:0;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600}
+  nav button.active{background:var(--panel);color:var(--acc)}
+  main{flex:1;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}
+  .view{display:none} .view.on{display:block}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .card .k{font:600 11px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+  .card .v{font-size:17px;margin-top:4px;word-break:break-word}
+  h2{font-size:14px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:16px 2px 8px}
+  .row{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);margin-bottom:6px}
+  .row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px var(--mono)}
+  .row .sub{font:11px var(--mono);color:var(--dim)}
+  .chip{font:700 10px var(--mono);padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .chip.up{color:var(--acc);border-color:#1c3a2e;background:#0e1c16}
+  .chip.down{color:var(--bad);border-color:#3a1c1e;background:#1c0e10}
+  button.act{background:#16233a;color:var(--acc2);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:600}
+  button.act.danger{color:var(--bad)}
+  input,textarea,select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;width:100%;font-family:var(--mono)}
+  textarea{min-height:150px;resize:vertical;white-space:pre;line-height:1.4}
+  .toolbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .toolbar>*{flex:0 0 auto}
+  .toolbar .grow{flex:1;min-width:120px}
+  pre.out{background:#06090f;border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;
+    font:12px/1.45 var(--mono);color:#c8d6e6;max-height:52vh;white-space:pre-wrap;word-break:break-word}
+  .muted{color:var(--dim);font-size:12px}
+  .term-in{display:flex;gap:8px;margin-top:8px}
+  .term-in span{color:var(--acc);font:700 14px var(--mono);align-self:center}
+  .fab{position:sticky;bottom:8px}
+  .list-scroll{max-height:60vh;overflow:auto}
+  a.link{color:var(--acc2);text-decoration:none}
+  .split{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:640px){.split{grid-template-columns:1fr 1fr}}
+  .busy{opacity:.5;pointer-events:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">RYZNIX<b>·</b>NEXUS</div>
+  <div id="mode" class="mode">…</div>
+  <div class="sp"></div>
+  <button onclick="refreshAll()">⟳</button>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+
+<script>
+/* ───────────────────────── transport ─────────────────────────
+   Inside AX Manager: Axeron injects a native bridge -> shell uid.
+   Standalone (Tailscale): served by the HTTP gateway -> POST /exec. */
+const RIPC = "/data/local/tmp/ryz-ipc";
+const T    = "/data/local/tmp";
+let MODE = "unknown";
+
+function detect(){
+  if (window.Axeron && typeof Axeron.exec === "function") return "axeron";
+  if (window.ksu && typeof ksu.exec === "function")       return "ksu";
+  return "http"; // standalone gateway
+}
+async function rx(cmd){
+  MODE = detect();
+  try{
+    if (MODE==="axeron"){ return JSON.parse(Axeron.exec(cmd, "{}")); }
+    if (MODE==="ksu"){
+      return await new Promise(res=>{
+        const cb="__nx"+Math.random().toString(36).slice(2);
+        window[cb]=(errno,stdout,stderr)=>{res({errno,stdout,stderr});try{delete window[cb]}catch(e){}};
+        ksu.exec(cmd, "{}", cb);
+      });
+    }
+    const r = await fetch("/exec",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token:(window.NX_TOKEN||""),cmd})});
+    return await r.json();
+  }catch(e){ return {errno:-1,stdout:"",stderr:String(e)}; }
+}
+// Base64-wrap so the transport's `sh -c "…"` can't pre-expand $vars/$(...)/quotes
+// (Axeron double-evaluates otherwise -> "unmatched 'for'", basename no-arg, etc.).
+function b64(s){ return btoa(unescape(encodeURIComponent(s))); }
+async function sh(cmd){ const r=await rx("echo "+b64(cmd)+" | base64 -d | sh"); return ((r.stdout||"")+((r.stderr&&r.errno)?("\n"+r.stderr):"")).replace(/\s+$/,""); }
+async function ipc(svc,req){ return await sh(`${RIPC} ${svc} ${req}`); }
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+// escape a value used inside a single-quoted JS string in a double-quoted onclick attr
+function jarg(s){return String(s==null?"":s).replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/"/g,"&quot;").replace(/[<>]/g,"");}
+function markMode(){ const m=document.getElementById("mode"); const d=detect();
+  m.textContent = d==="axeron"?"AXERON · shell":(d==="ksu"?"KSU · shell":"HTTP · tailscale");
+  m.className = "mode "+(d==="http"?"":"ok"); }
+
+/* ───────────────────────── tabs ───────────────────────── */
+const TABS=[
+  ["dash","Dashboard",renderDash],
+  ["deck","⚡ Deck",renderDeck],
+  ["svc","Services",renderSvc],
+  ["proc","Processes",renderProc],
+  ["pkg","Packages",renderPkg],
+  ["files","Files",renderFiles],
+  ["ds","Datastore",renderDS],
+  ["ryz","RYZ Lab",renderRyz],
+  ["term","Terminal",renderTerm],
+  ["log","Logcat",renderLog],
+];
+let cur="dash";
+function buildNav(){
+  const n=document.getElementById("nav"); n.innerHTML="";
+  for(const [id,label] of TABS){
+    const b=document.createElement("button"); b.textContent=label; b.dataset.id=id;
+    if(id===cur)b.className="active";
+    b.onclick=()=>{cur=id;[...n.children].forEach(c=>c.className=c.dataset.id===id?"active":"");show(id);};
+    n.appendChild(b);
+  }
+}
+const views={};
+function view(id){ if(!views[id]){const d=document.createElement("div");d.className="view";d.id="v_"+id;document.getElementById("main").appendChild(d);views[id]=d;} return views[id]; }
+function show(id){ for(const k in views)views[k].className="view"+(k===id?" on":""); const t=TABS.find(t=>t[0]===id); if(t)t[2](view(id)); }
+function refreshAll(){ markMode(); show(cur); }
+
+/* ───────────────────────── panels ───────────────────────── */
+async function renderDash(el){
+  el.innerHTML=`<div class="grid" id="dg"><div class="card"><div class="k">loading…</div></div></div>
+    <h2>Microkernel</h2><div id="dsvc" class="muted">probing…</div>
+    <h2>Network</h2><pre class="out" id="dnet">…</pre>`;
+  const q=async(c)=>((await sh(c))||"?");
+  const model=await q("getprop ro.product.model");
+  const rel=await q("getprop ro.build.version.release");
+  const kern=await q("uname -r");
+  const up=await q("uptime -p 2>/dev/null || cut -d. -f1 /proc/uptime");
+  const bat=await q("cat /sys/class/power_supply/battery/capacity 2>/dev/null");
+  const mem=await q("awk '/MemAvailable/{a=$2}/MemTotal/{t=$2}END{printf \"%d / %d MB\",a/1024,t/1024}' /proc/meminfo");
+  const load=await q("cut -d' ' -f1-3 /proc/loadavg");
+  const cells=[["Device",model],["Android",rel],["Kernel",kern],["Uptime",up],["Battery",bat+"%"],["Mem avail",mem],["Load",load],["Exec mode",detect()]];
+  document.getElementById("dg").innerHTML=cells.map(([k,v])=>`<div class="card"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("");
+  const st=await ipc("ryznix.rs","STATUS");
+  const rows=(st||"").trim().split("\n").filter(Boolean).map(l=>{const [n,s]=l.split(" ");return `<div class="row"><div class="name">${esc(n)}</div><div class="chip ${s==="UP"?"up":"down"}">${esc(s||"?")}</div></div>`;}).join("");
+  document.getElementById("dsvc").innerHTML=rows||"<span class='muted'>rs-server not responding</span>";
+  document.getElementById("dnet").textContent=await q(`${T}/ryzsystemd status 2>/dev/null | sed 's/^ *//'`);
+}
+async function renderSvc(el){
+  el.innerHTML=`<div class="toolbar"><button class="act" onclick="show('svc')">⟳ Refresh</button></div><div id="svl">…</div>`;
+  // ryzsystemd mislabels shell-script units (e.g. app-watchdog) as "dead" because their
+  // comm != PidMarker. Cross-check real liveness with pgrep so the panel tells the truth.
+  const raw=await sh(`${T}/ryzsystemd status 2>/dev/null | tail -n +2 | while read n s; do echo "$n|$s|$(pgrep -x "$n" >/dev/null 2>&1 && echo UP || echo DOWN)"; done`);
+  const lines=raw.split("\n").map(l=>l.trim()).filter(Boolean);
+  document.getElementById("svl").innerHTML=lines.map(l=>{
+    const p=l.split("|"); const name=p[0], state=(p[1]||"").trim(), up=(p[2]==="UP");
+    const mislabel=up&&!/running/.test(state);
+    return `<div class="row"><div style="flex:1;min-width:0"><div class="name">${esc(name)}</div><div class="sub">${esc(state)}${mislabel?" · running (script unit)":""}</div></div>
+      <div class="chip ${up?"up":"down"}">${up?"UP":"DOWN"}</div>
+      <button class="act" onclick="svcAct('start','${esc(name)}')">start</button>
+      <button class="act danger" onclick="svcAct('stop','${esc(name)}')">stop</button></div>`;
+  }).join("")||"<span class='muted'>no units</span>";
+}
+async function svcAct(a,n){ await sh(`setsid ${T}/ryzsystemd ${a} ${n} </dev/null >/dev/null 2>&1 &`); setTimeout(()=>show('svc'),1200); }
+
+async function renderProc(el){
+  el.innerHTML=`<div class="toolbar"><input class="grow" id="pf" placeholder="filter…" oninput="filterProc()"><button class="act" onclick="show('proc')">⟳</button></div>
+    <div class="list-scroll" id="pl">…</div>`;
+  const out=await ipc("ryznix.pm","PS");
+  window._proc=(out||"").split("\n").filter(l=>l.trim());
+  filterProc();
+}
+function filterProc(){
+  const f=(document.getElementById("pf").value||"").toLowerCase();
+  const rows=(window._proc||[]).filter(l=>l.toLowerCase().includes(f)).slice(0,300).map(l=>{
+    const pid=(l.trim().split(/\s+/)[0]||"");
+    return `<div class="row"><div class="name" style="font-size:11px">${esc(l.trim())}</div>${/^\d+$/.test(pid)?`<button class="act danger" onclick="killp('${pid}')">kill</button>`:""}</div>`;
+  }).join("");
+  document.getElementById("pl").innerHTML=rows||"<span class='muted'>none</span>";
+}
+async function killp(pid){ await ipc("ryznix.pm","KILL "+pid); setTimeout(()=>show('proc'),600); }
+
+async function renderPkg(el){
+  el.innerHTML=`<div class="toolbar"><input class="grow" id="qf" placeholder="search packages…"><button class="act" onclick="pkgSearch()">Search</button></div>
+    <div class="list-scroll" id="pkl"><span class="muted">enter a query</span></div>`;
+  document.getElementById("qf").addEventListener("keydown",e=>{if(e.key==="Enter")pkgSearch();});
+}
+async function pkgSearch(){
+  const q=(document.getElementById("qf").value||"").trim();
+  const out=await sh(`pm list packages 2>/dev/null | sed 's/package://' | grep -i '${q.replace(/'/g,"")}' | head -80`);
+  const list=out.split("\n").filter(Boolean);
+  document.getElementById("pkl").innerHTML=list.map(p=>`<div class="row"><div class="name">${esc(p)}</div>
+     <button class="act" onclick="amStart('${jarg(p)}')">launch</button>
+     <button class="act" onclick="pkgInfo('${jarg(p)}')">info</button></div>`).join("")||"<span class='muted'>no matches</span>";
+}
+async function amStart(p){ await sh(`monkey -p ${p} -c android.intent.category.LAUNCHER 1 2>/dev/null || am start -n ${p}/.MainActivity 2>&1`); }
+async function pkgInfo(p){ alert((await sh(`dumpsys package ${p} | grep -E 'versionName|firstInstall|lastUpdate|targetSdk' | head -6`))||p); }
+
+async function renderFiles(el){
+  el.innerHTML=`<div class="toolbar"><input class="grow" id="fp" value="${esc(window._cwd||'/data/local/tmp')}">
+     <button class="act" onclick="lsDir()">Go</button></div>
+     <div id="fl" class="list-scroll">…</div><pre class="out" id="fv" style="display:none"></pre>`;
+  lsDir();
+}
+async function lsDir(){
+  const p=document.getElementById("fp").value||"/"; window._cwd=p;
+  const out=await sh(`ls -1Ap '${p}' 2>&1`);
+  const items=out.split("\n").filter(Boolean);
+  document.getElementById("fv").style.display="none";
+  document.getElementById("fl").innerHTML=`<div class="row"><a class="link" onclick="up()">⬆ ..</a></div>`+items.map(it=>{
+    const dir=it.endsWith("/"); const name=dir?it.slice(0,-1):it;
+    return `<div class="row"><div class="name">${dir?"📁":"📄"} <a class="link" onclick="${dir?`cd('${jarg(name)}')`:`viewf('${jarg(name)}')`}">${esc(name)}</a></div></div>`;
+  }).join("");
+}
+function join(a,b){return (a.replace(/\/+$/,''))+"/"+b;}
+function cd(n){document.getElementById("fp").value=join(window._cwd,n);lsDir();}
+function up(){const p=window._cwd.replace(/\/+$/,'');document.getElementById("fp").value=p.slice(0,p.lastIndexOf("/"))||"/";lsDir();}
+async function viewf(n){const full=join(window._cwd,n);const v=document.getElementById("fv");
+  v.style.display="block";v.textContent=await sh(`head -c 100000 '${full}' 2>&1`);}
+
+async function renderDS(el){
+  el.innerHTML=`<div class="toolbar"><input id="dk" placeholder="key" class="grow"><input id="dv" placeholder="value" class="grow">
+     <button class="act" onclick="dsSet()">SET</button></div><div id="dsl">…</div>`;
+  dsList();
+}
+async function dsList(){
+  const out=await ipc("ryznix.ds","LIST");
+  const rows=(out||"").split("\n").filter(Boolean).map(l=>{const i=l.indexOf("=");const k=l.slice(0,i),v=l.slice(i+1);
+    return `<div class="row"><div class="name">${esc(k)}</div><div class="sub" style="flex:1">${esc(v)}</div>
+      <button class="act danger" onclick="dsDel('${jarg(k)}')">del</button></div>`;}).join("");
+  document.getElementById("dsl").innerHTML=rows||"<span class='muted'>empty</span>";
+}
+async function dsSet(){const k=document.getElementById("dk").value.trim(),v=document.getElementById("dv").value;
+  if(!k)return; await ipc("ryznix.ds",`SET ${k} ${v}`);document.getElementById("dk").value="";document.getElementById("dv").value="";dsList();}
+async function dsDel(k){await ipc("ryznix.ds","DEL "+k);dsList();}
+
+async function renderRyz(el){
+  el.innerHTML=`<div class="muted">Write RYZ, compile with your ryzc2, run — live.</div>
+    <textarea id="rc">fn main() {
+    fmt.println("hello from live-compiled RYZ")
+    let n = list.len(sys.argv())
+    fmt.println(fmt.sprintf("args={}", n))
+}</textarea>
+    <div class="toolbar" style="margin-top:8px"><button class="act" onclick="ryzRun()">▶ Compile &amp; Run</button>
+      <button class="act" onclick="ryzTmplIpc()">ipc server template</button></div>
+    <pre class="out" id="ro">—</pre>`;
+}
+async function ryzRun(){
+  const code=document.getElementById("rc").value;
+  const ro=document.getElementById("ro"); ro.textContent="compiling…";
+  if(detect()!=="http"){
+    ro.textContent="Live RYZ compile needs the toolchain (clang/ryzc2), which lives in Termux (app uid).\n"+
+      "Inside AX Manager exec runs as shell uid and can't reach it.\n\n"+
+      "Open Nexus through the gateway (ryznix-gateway.py, Termux uid) to compile here —\n"+
+      "same UI, and /compile does ryzc2 + run. Device/microkernel panels work in both modes.";
+    return;
+  }
+  try{
+    const r=await fetch("/compile",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token:(window.NX_TOKEN||""),code})});
+    const j=await r.json(); ro.textContent=(j.stdout||"")+(j.stderr||"")||"(no output)";
+  }catch(e){ ro.textContent="gateway /compile error: "+e; }
+}
+function ryzTmplIpc(){document.getElementById("rc").value=
+`fn main() {
+    let fd = ipc.listen("ryznix.demo")
+    if fd < 0 { fmt.println("bind failed"); return }
+    while 1 == 1 {
+        let c = ipc.accept(fd)
+        let m = ipc.recv(c)
+        ipc.send(c, fmt.sprintf("demo echo: {}", m))
+        ipc.close(c)
+    }
+}`;}
+
+async function renderTerm(el){
+  if(!window._hist)window._hist=[];
+  el.innerHTML=`<pre class="out" id="to" style="max-height:60vh">Ryznix Nexus terminal — runs as shell uid.\n</pre>
+    <div class="term-in"><span>$</span><input id="ti" placeholder="command…" autocapitalize="off" autocomplete="off" spellcheck="false"></div>`;
+  const ti=document.getElementById("ti");
+  ti.addEventListener("keydown",async e=>{
+    if(e.key==="Enter"){const c=ti.value;ti.value="";await termRun(c);}
+    if(e.key==="ArrowUp"){const h=window._hist;if(h.length){ti.value=h[h.length-1];}}
+  });
+  ti.focus();
+}
+async function termRun(c){
+  if(!c.trim())return; window._hist.push(c);
+  const to=document.getElementById("to"); to.textContent+="$ "+c+"\n";
+  const out=await sh(c); to.textContent+=(out||"")+"\n"; to.scrollTop=to.scrollHeight;
+}
+
+async function renderLog(el){
+  el.innerHTML=`<div class="toolbar"><input class="grow" id="lgf" placeholder="grep filter (optional)"><button class="act" onclick="loadLog()">Pull</button></div>
+    <pre class="out" id="lo" style="max-height:66vh">…</pre>`;
+  loadLog();
+}
+async function loadLog(){
+  const f=(document.getElementById("lgf").value||"").replace(/'/g,"");
+  const cmd=f?`logcat -d -t 300 2>/dev/null | grep -i '${f}' | tail -200`:`logcat -d -t 200 2>/dev/null`;
+  document.getElementById("lo").textContent=await sh(cmd)||"(logcat unavailable)";
+}
+
+/* ═════════════════════ ⚡ OLYMPUS COMMAND DECK ═════════════════════
+   Data-driven wall of controls. Every command runs as shell uid (2000) via
+   axeron.exec / the bridge. sysfs writes (CPU/GPU/thermal) may need root and
+   will just report their error — the panel shows raw output so you see it. */
+const A="settings put", G="settings get";
+const CPUGOV="for p in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo %s > $p 2>&1; done; cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
+const DECK=[
+ {group:"⚡ Power & Battery", items:[
+   {t:"toggle",label:"Battery Saver",get:`${G} global low_power`,on:`${A} global low_power 1`,off:`${A} global low_power 0`},
+   {t:"toggle",label:"Adaptive Battery",get:`${G} global adaptive_battery_management_enabled`,on:`${A} global adaptive_battery_management_enabled 1`,off:`${A} global adaptive_battery_management_enabled 0`},
+   {t:"toggle",label:"App Standby",get:`${G} global app_standby_enabled`,on:`${A} global app_standby_enabled 1`,off:`${A} global app_standby_enabled 0`},
+   {t:"toggle",label:"Stay Awake (charging)",get:`${G} global stay_on_while_plugged_in`,on:`${A} global stay_on_while_plugged_in 7`,off:`${A} global stay_on_while_plugged_in 0`,onval:"7"},
+   {t:"toggle",label:"Enhanced Processing (Samsung)",get:`${G} global enhanced_processing`,on:`${A} global enhanced_processing 1`,off:`${A} global enhanced_processing 0`},
+   {t:"action",label:"Force Doze now",cmd:"dumpsys deviceidle force-idle"},
+   {t:"action",label:"Exit Doze",cmd:"dumpsys deviceidle unforce"},
+   {t:"action",label:"Disable Doze",cmd:"dumpsys deviceidle disable"},
+   {t:"action",label:"Reset Battery Stats",cmd:"dumpsys batterystats --reset"},
+   {t:"input",label:"Charge limit % (sysfs, device-specific)",cmd:"echo {v} > /sys/class/power_supply/battery/batt_slate_mode 2>&1; echo {v} > /sys/devices/platform/battery/power_supply/battery/battery_charging_limit 2>&1"},
+   {t:"read",label:"Battery detail",cmd:"dumpsys battery | sed 's/^ *//' | grep -iE 'level|scale|temp|status|health|voltage|current|charge'"},
+ ]},
+ {group:"🚀 Performance", items:[
+   {t:"select",label:"CPU Governor (all policies)",get:"cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null",opts:[
+      {label:"performance",cmd:CPUGOV.replace("%s","performance")},
+      {label:"schedutil",cmd:CPUGOV.replace("%s","schedutil")},
+      {label:"walt",cmd:CPUGOV.replace("%s","walt")},
+      {label:"powersave",cmd:CPUGOV.replace("%s","powersave")}]},
+   {t:"action",label:"All CPU cores ONLINE",cmd:"for c in /sys/devices/system/cpu/cpu[0-9]*/online; do echo 1 > $c 2>&1; done; echo done"},
+   {t:"action",label:"Drop caches",cmd:"echo 3 > /proc/sys/vm/drop_caches 2>&1; echo dropped; free -m 2>/dev/null | head -2"},
+   {t:"action",label:"Compact memory",cmd:"echo 1 > /proc/sys/vm/compact_memory 2>&1; echo compacted"},
+   {t:"action",label:"Kill ALL background apps",cmd:"am kill-all 2>&1; echo killed"},
+   {t:"input",label:"vm.swappiness",cmd:"echo {v} > /proc/sys/vm/swappiness 2>&1; cat /proc/sys/vm/swappiness"},
+   {t:"toggle",label:"Samsung Game/Perf mode",get:`${G} system game_home_enable`,on:`${A} system game_home_enable 1`,off:`${A} system game_home_enable 0`},
+   {t:"read",label:"CPU freqs (per policy)",cmd:"for p in /sys/devices/system/cpu/cpufreq/policy*; do echo \"$(basename $p): cur=$(cat $p/scaling_cur_freq 2>/dev/null) gov=$(cat $p/scaling_governor 2>/dev/null)\"; done"},
+   {t:"read",label:"Load / mem",cmd:"cat /proc/loadavg; echo; free -m 2>/dev/null | head -3 || awk '/MemTotal|MemAvailable/{print}' /proc/meminfo"},
+ ]},
+ {group:"🌡 Thermal", items:[
+   {t:"select",label:"Thermal status override",get:"echo '(write-only)'",opts:[
+      {label:"NONE(0)",cmd:"cmd thermalservice override-status 0 2>&1"},
+      {label:"LIGHT(1)",cmd:"cmd thermalservice override-status 1 2>&1"},
+      {label:"SEVERE(3)",cmd:"cmd thermalservice override-status 3 2>&1"},
+      {label:"reset",cmd:"cmd thermalservice reset 2>&1"}]},
+   {t:"action",label:"Stop thermal-engine (needs root)",cmd:"stop thermal-engine 2>&1; stop vendor.thermal-engine 2>&1; echo attempted",danger:true},
+   {t:"action",label:"Start thermal-engine",cmd:"start thermal-engine 2>&1; start vendor.thermal-engine 2>&1; echo attempted"},
+   {t:"read",label:"Thermal zones (°C)",cmd:"for z in /sys/class/thermal/thermal_zone*; do t=$(cat $z/temp 2>/dev/null); n=$(cat $z/type 2>/dev/null); [ -n \"$t\" ] && echo \"$n: $((t/1000))\"; done | sort -t: -k2 -rn | head -25"},
+ ]},
+ {group:"🖥 Display", items:[
+   {t:"slider",label:"Brightness",get:`${G} system screen_brightness`,set:`${A} system screen_brightness {v}`,min:0,max:255},
+   {t:"toggle",label:"Auto Brightness",get:`${G} system screen_brightness_mode`,on:`${A} system screen_brightness_mode 1`,off:`${A} system screen_brightness_mode 0`},
+   {t:"toggle",label:"Dark Mode",get:"cmd uimode night",on:"cmd uimode night yes",off:"cmd uimode night no",onval:"yes"},
+   {t:"select",label:"Animations",get:`${G} global animator_duration_scale`,opts:[
+      {label:"OFF",cmd:`${A} global window_animation_scale 0;${A} global transition_animation_scale 0;${A} global animator_duration_scale 0;echo 0`},
+      {label:"0.5x",cmd:`${A} global window_animation_scale 0.5;${A} global transition_animation_scale 0.5;${A} global animator_duration_scale 0.5;echo .5`},
+      {label:"1x",cmd:`${A} global window_animation_scale 1;${A} global transition_animation_scale 1;${A} global animator_duration_scale 1;echo 1`}]},
+   {t:"input",label:"Peak refresh rate (Hz)",cmd:`${A} system peak_refresh_rate {v};${A} system min_refresh_rate {v};echo {v}Hz`},
+   {t:"input",label:"Density (dpi)",cmd:"wm density {v} 2>&1"},
+   {t:"action",label:"Reset density",cmd:"wm density reset 2>&1;echo reset"},
+   {t:"input",label:"Font scale",cmd:`${A} system font_scale {v};echo {v}`},
+   {t:"action",label:"Screen OFF",cmd:"input keyevent 26"},
+   {t:"action",label:"Screen ON",cmd:"input keyevent 224 2>&1 || input keyevent 26"},
+   {t:"action",label:"Screenshot",cmd:"input keyevent 120 2>&1; echo shot"},
+ ]},
+ {group:"📡 Radios & Connectivity", items:[
+   {t:"toggle",label:"Wi‑Fi",get:`${G} global wifi_on`,on:"svc wifi enable",off:"svc wifi disable"},
+   {t:"toggle",label:"Mobile Data",get:`${G} global mobile_data`,on:"svc data enable",off:"svc data disable"},
+   {t:"toggle",label:"Bluetooth",get:`${G} global bluetooth_on`,on:"svc bluetooth enable 2>/dev/null || cmd bluetooth_manager enable",off:"svc bluetooth disable 2>/dev/null || cmd bluetooth_manager disable"},
+   {t:"toggle",label:"Airplane Mode",get:`${G} global airplane_mode_on`,
+     on:`${A} global airplane_mode_on 1;am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true`,
+     off:`${A} global airplane_mode_on 0;am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false`},
+   {t:"toggle",label:"NFC",get:`${G} global nfc_on 2>/dev/null`,on:"svc nfc enable 2>&1",off:"svc nfc disable 2>&1"},
+   {t:"select",label:"Location",get:`${G} secure location_mode`,opts:[
+      {label:"OFF",cmd:`${A} secure location_mode 0;echo 0`},{label:"Battery‑Saving",cmd:`${A} secure location_mode 2;echo 2`},{label:"High Accuracy",cmd:`${A} secure location_mode 3;echo 3`}]},
+   {t:"read",label:"IP / links",cmd:"ip -o addr 2>/dev/null | awk '{print $2,$4}' | grep -v ' ::1' | head -12"},
+ ]},
+ {group:"🛠 System & Dev", items:[
+   {t:"input",label:"Background process limit",cmd:`${A} global background_process_limit {v};echo {v}`},
+   {t:"toggle",label:"Don't keep activities",get:`${G} global always_finish_activities`,on:`${A} global always_finish_activities 1`,off:`${A} global always_finish_activities 0`},
+   {t:"toggle",label:"Show taps",get:`${G} system show_touches`,on:`${A} system show_touches 1`,off:`${A} system show_touches 0`},
+   {t:"toggle",label:"Pointer location",get:`${G} system pointer_location`,on:`${A} system pointer_location 1`,off:`${A} system pointer_location 0`},
+   {t:"toggle",label:"ADB over network (5555)",get:`${G} global adb_tcp_port`,on:"setprop service.adb.tcp.port 5555;setprop ctl.restart adbd 2>&1;echo 5555",off:"setprop service.adb.tcp.port -1;setprop ctl.restart adbd 2>&1;echo off",onval:"5555"},
+   {t:"toggle",label:"Immersive (hide bars)",get:`${G} global policy_control`,on:`${A} global policy_control immersive.full=*`,off:`${A} global policy_control null`,onval:"immersive.full=*"},
+   {t:"action",label:"Clear logcat",cmd:"logcat -c 2>&1;echo cleared"},
+   {t:"action",label:"Reset ALL animations to 1x",cmd:`${A} global window_animation_scale 1;${A} global transition_animation_scale 1;${A} global animator_duration_scale 1;echo ok`},
+   {t:"read",label:"Top CPU processes",cmd:"top -bn1 2>/dev/null | head -16"},
+ ]},
+ {group:"☢ Danger Zone", items:[
+   {t:"action",label:"Reboot",cmd:"svc power reboot 2>&1 || reboot",danger:true,confirm:true},
+   {t:"action",label:"Reboot Recovery",cmd:"svc power reboot recovery 2>&1 || reboot recovery",danger:true,confirm:true},
+   {t:"action",label:"Reboot Bootloader",cmd:"svc power reboot bootloader 2>&1 || reboot bootloader",danger:true,confirm:true},
+   {t:"action",label:"Soft reboot (restart SystemUI+zygote)",cmd:"setprop ctl.restart zygote 2>&1;echo restarting…",danger:true,confirm:true},
+   {t:"action",label:"Shutdown",cmd:"svc power shutdown 2>&1 || reboot -p",danger:true,confirm:true},
+ ]},
+];
+function ctrlHtml(gi,ii,it){
+  const id=`c_${gi}_${ii}`;
+  if(it.t==="toggle") return `<div class="card"><div class="k">${esc(it.label)}</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+      <span class="chip" id="${id}_s">?</span>
+      <button class="act" onclick="deckToggle(${gi},${ii},1)">ON</button>
+      <button class="act danger" onclick="deckToggle(${gi},${ii},0)">OFF</button></div></div>`;
+  if(it.t==="action") return `<div class="card"><div class="k">${esc(it.label)}</div>
+    <button class="act ${it.danger?'danger':''}" style="margin-top:8px" onclick="deckAction(${gi},${ii})">Run</button>
+    <div class="sub" id="${id}_o" style="margin-top:4px;white-space:pre-wrap"></div></div>`;
+  if(it.t==="select") return `<div class="card"><div class="k">${esc(it.label)}</div><div class="sub" id="${id}_s" style="margin-top:2px">?</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">${it.opts.map((o,oi)=>`<button class="act" onclick="deckSel(${gi},${ii},${oi})">${esc(o.label)}</button>`).join("")}</div></div>`;
+  if(it.t==="slider") return `<div class="card"><div class="k">${esc(it.label)} <span class="sub" id="${id}_v"></span></div>
+    <input type="range" min="${it.min}" max="${it.max}" id="${id}_r" style="margin-top:8px" oninput="document.getElementById('${id}_v').textContent=this.value" onchange="deckSlide(${gi},${ii},this.value)"></div>`;
+  if(it.t==="input") return `<div class="card"><div class="k">${esc(it.label)}</div>
+    <div style="display:flex;gap:6px;margin-top:8px"><input id="${id}_i" style="flex:1" placeholder="value" inputmode="numeric"><button class="act" onclick="deckInput(${gi},${ii})">Set</button></div>
+    <div class="sub" id="${id}_o" style="margin-top:4px"></div></div>`;
+  if(it.t==="read") return `<div class="card" style="grid-column:1/-1"><div class="k" style="display:flex;justify-content:space-between">${esc(it.label)}<a class="link" onclick="deckReadOne(${gi},${ii})">⟳</a></div><pre class="out" id="${id}_o" style="max-height:32vh;margin-top:6px">…</pre></div>`;
+  return "";
+}
+async function renderDeck(el){
+  el.innerHTML=`<div class="muted" style="margin-bottom:8px">Every control runs as shell uid. Reads reflect live state; sysfs/thermal writes may need root (output shown).</div>`+
+    DECK.map((g,gi)=>`<h2>${esc(g.group)}</h2><div class="grid" id="deck_${gi}"></div>`).join("")+
+    `<div class="toolbar" style="margin-top:12px"><button class="act" onclick="refreshDeck()">⟳ Read all states</button></div>`;
+  DECK.forEach((g,gi)=>{document.getElementById("deck_"+gi).innerHTML=g.items.map((it,ii)=>ctrlHtml(gi,ii,it)).join("");});
+  refreshDeck();
+}
+function di(gi,ii){return DECK[gi].items[ii];}
+async function deckToggle(gi,ii,on){const it=di(gi,ii);await sh(on?it.on:it.off);setTimeout(()=>deckState(gi,ii),250);}
+async function deckSel(gi,ii,oi){const it=di(gi,ii);const r=await sh(it.opts[oi].cmd);const s=document.getElementById(`c_${gi}_${ii}_s`);if(s)s.textContent=(r||"set").trim().slice(0,40);}
+function subv(s,v){return s.split("{v}").join(v);}
+async function deckSlide(gi,ii,v){const it=di(gi,ii);await sh(subv(it.set,v));}
+async function deckInput(gi,ii){const it=di(gi,ii);const v=(document.getElementById(`c_${gi}_${ii}_i`).value||"").trim();if(!v)return;const o=await sh(subv(it.cmd,v.replace(/[^0-9A-Za-z.\-]/g,"")));const e=document.getElementById(`c_${gi}_${ii}_o`);if(e)e.textContent=(o||"ok").slice(0,80);}
+async function deckAction(gi,ii){const it=di(gi,ii);if(it.confirm&&!confirm(it.label+" — are you sure?"))return;const e=document.getElementById(`c_${gi}_${ii}_o`);if(e)e.textContent="…";const o=await sh(it.cmd);if(e)e.textContent=(o||"done").slice(0,200);}
+async function deckReadOne(gi,ii){const it=di(gi,ii);const e=document.getElementById(`c_${gi}_${ii}_o`);if(e)e.textContent=await sh(it.cmd)||"(no output)";}
+async function deckState(gi,ii){const it=di(gi,ii);const s=document.getElementById(`c_${gi}_${ii}_s`);if(!s||!it.get)return;
+  const raw=(await sh(it.get)).trim();const val=raw.split(/\s+/).pop()||raw;
+  if(it.t==="toggle"){const on=(val===(it.onval||"1"));s.className="chip "+(on?"up":"down");s.textContent=on?"ON":"OFF";}
+  else{s.className="sub";s.textContent=val.slice(0,40);}}
+async function refreshDeck(){
+  // Batch every state-read into ONE exec (axeron.exec is blocking — 30 calls would
+  // freeze the UI). Multi-line "read" panels stay separate.
+  const cmds=[];
+  DECK.forEach((g,gi)=>g.items.forEach((it,ii)=>{
+    if(it.t==="read"){deckReadOne(gi,ii);return;}
+    if(it.get)cmds.push(`echo "RX_${gi}_${ii}=$(${it.get} 2>/dev/null | tr '\\n' ' ')"`);
+  }));
+  if(!cmds.length)return;
+  const out=await sh(cmds.join(";"));
+  const map={};
+  out.split("\n").forEach(l=>{const m=l.match(/^RX_(\d+)_(\d+)=(.*)$/);if(m)map[m[1]+"_"+m[2]]=m[3].trim();});
+  DECK.forEach((g,gi)=>g.items.forEach((it,ii)=>{
+    if(!it.get)return;
+    const raw=map[`${gi}_${ii}`]||"";const val=raw.split(/\s+/).filter(Boolean).pop()||"";
+    if(it.t==="toggle"){const s=document.getElementById(`c_${gi}_${ii}_s`);if(s){const on=(val===(it.onval||"1"));s.className="chip "+(on?"up":"down");s.textContent=on?"ON":"OFF";}}
+    else if(it.t==="slider"){const el=document.getElementById(`c_${gi}_${ii}_r`),lb=document.getElementById(`c_${gi}_${ii}_v`);if(el&&/^\d+$/.test(val)){el.value=val;if(lb)lb.textContent=val;}}
+    else if(it.t==="select"){const s=document.getElementById(`c_${gi}_${ii}_s`);if(s)s.textContent=val.slice(0,40)||"?";}
+  }));
+}
+
+/* ───────────────────────── boot ───────────────────────── */
+markMode(); buildNav(); show("dash");
+</script>
+</body>
+</html>

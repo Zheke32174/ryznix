@@ -1,0 +1,4 @@
+Description=Ryznix process manager
+ExecStart=/data/local/tmp/pm-server
+Restart=always
+PidMarker=pm-server

@@ -1,0 +1,20 @@
+# secrets & runtime state — never commit
+*.token
+bridge.token
+*.log
+# build artifacts / binaries
+*.zip
+*.bin
+*.out
+*.o
+nexus_live.*
+# compiled native ELFs (rebuilt from source)
+microkernel/ds-server
+microkernel/pm-server
+microkernel/vfs-server
+microkernel/rs-server
+microkernel/ryz-bridge
+microkernel/ryz-ipc
+# scratch
+*.tmp
+*.bak.*

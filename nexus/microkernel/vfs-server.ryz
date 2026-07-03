@@ -1,0 +1,49 @@
+// vfs-server.ryz — Ryznix virtual filesystem server (VFS).
+// Abstract endpoint @ryznix.vfs. Runs as shell uid -> filesystem reach.
+// Protocol: PING | EXISTS <path> | STAT <path> | LIST <path> | READ <path>
+//           (READ is capped at 64 KiB; write ops intentionally omitted for safety)
+
+fn handle(msg: string) -> string {
+    let m = str.strip(msg)
+    let parts = str.split(m, " ")
+    let n = list.len(parts)
+    if n == 0 { return "ERR empty" }
+    let cmd = list.get(parts, 0)
+    if cmd == "PING" { return "PONG" }
+    if n < 2 { return "ERR need path" }
+    // path = everything after the command (supports spaces)
+    mut path = ""
+    mut i = 1
+    while i < n {
+        if i > 1 { path = path + " " }
+        path = path + list.get(parts, i)
+        i = i + 1
+    }
+    if cmd == "EXISTS" {
+        return str.strip(fmt.shell(fmt.sprintf("test -e '{}' && echo 1 || echo 0", path)))
+    }
+    if cmd == "STAT" {
+        return str.strip(fmt.shell(fmt.sprintf("stat -c '%n type=%F size=%s mode=%A owner=%U' '{}' 2>&1", path)))
+    }
+    if cmd == "LIST" {
+        return fmt.shell(fmt.sprintf("ls -la '{}' 2>&1", path))
+    }
+    if cmd == "READ" {
+        return fmt.shell(fmt.sprintf("head -c 65536 '{}' 2>&1", path))
+    }
+    return "ERR unknown"
+}
+
+fn main() {
+    let fd = ipc.listen("ryznix.vfs")
+    if fd < 0 {
+        fmt.println("vfs-server: listen @ryznix.vfs failed")
+        return
+    }
+    while 1 == 1 {
+        let c = ipc.accept(fd)
+        let msg = ipc.recv(c)
+        ipc.send(c, handle(msg))
+        ipc.close(c)
+    }
+}

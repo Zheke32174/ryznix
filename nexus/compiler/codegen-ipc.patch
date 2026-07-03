@@ -1,0 +1,152 @@
+--- codegen.c.bak.1780982493	2026-07-01 23:11:52.000000000 -0400
++++ codegen.c	2026-07-02 20:41:43.382985782 -0400
+@@ -352,6 +352,9 @@
+                         else if (at && type_is_float(at)) {
+                             emit(g,"ryz_dbl_tostr((double)");
+                             emit_expr(g,n->call.args.items[i]); emit(g,")");
++                        } else if (!at || at->kind == TY_ANY || at->kind == TY_INFER) {
++                            emit(g,"ryz_tostr((ryz_any)(");
++                            emit_expr(g,n->call.args.items[i]); emit(g,"))");
+                         } else {
+                             emit(g,"ryz_int_tostr((int64_t)");
+                             emit_expr(g,n->call.args.items[i]); emit(g,")");
+@@ -449,6 +452,18 @@
+                 }
+             }
+ 
++            /* ── ipc (abstract AF_UNIX SEQPACKET) ── */
++            if (strcmp(mod,"ipc")==0) {
++                if (strcmp(fn,"listen")==0)  { emit(g,"ryz_ipc_listen(");  emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++                if (strcmp(fn,"connect")==0) { emit(g,"ryz_ipc_connect("); emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++                if (strcmp(fn,"listen_tcp")==0)  { emit(g,"ryz_ipc_listen_tcp(");  emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++                if (strcmp(fn,"connect_tcp")==0) { emit(g,"ryz_ipc_connect_tcp("); emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++                if (strcmp(fn,"accept")==0)  { emit(g,"ryz_ipc_accept(");  emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++                if (strcmp(fn,"recv")==0)    { emit(g,"ryz_ipc_recv(");    emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++                if (strcmp(fn,"send")==0)    { emit(g,"ryz_ipc_send(");    emit_expr(g,n->call.args.items[0]); emit(g,","); emit_expr(g,n->call.args.items[1]); emit(g,")"); break; }
++                if (strcmp(fn,"close")==0)   { emit(g,"ryz_ipc_close(");   emit_expr(g,n->call.args.items[0]); emit(g,")"); break; }
++            }
++
+             /* ── str ── */
+             if (strcmp(mod,"str")==0) {
+                 if (strcmp(fn,"len")==0) {
+@@ -728,10 +743,19 @@
+         break;
+     }
+     case NK_RETURN:
+-        ind(g); emit(g, "return ");
+-        if (n->retval) emit_expr(g, n->retval);
+-        else emit(g, "0");
+-        emit(g, ";\n");
++        ind(g);
++        if (n->retval) {
++            emit(g, "return ");
++            emit_expr(g, n->retval);
++            emit(g, ";\n");
++        } else {
++            /* bare return: void if no return type, else 0 */
++            int is_void = !g->cur_ret_ty ||
++                          g->cur_ret_ty->kind == TY_VOID ||
++                          g->cur_ret_ty->kind == TY_INFER;
++            if (is_void) emit(g, "return;\n");
++            else { emit(g, "return "); emit(g, "0"); emit(g, ";\n"); }
++        }
+         break;
+     case NK_BREAK:
+         ind(g); emit(g, "break;\n"); break;
+@@ -797,6 +821,11 @@
+     }
+     emit(g, " {\n");
+     g->indent = 1;
++    /* main always returns int in C — treat as i64 for bare-return logic */
++    if (strcmp(fn->fn.name,"main")==0)
++        g->cur_ret_ty = type_prim(TY_I64);
++    else
++        g->cur_ret_ty = fn->fn.ret_ty;
+     /* main: initialise RYZ_ARGV */
+     if (strcmp(fn->fn.name,"main")==0) {
+         emit(g, "    RYZ_ARGV = ryz_list_new();\n");
+@@ -839,6 +868,11 @@
+ "#include <errno.h>\n"
+ "#include <ctype.h>\n"
+ "#include <libgen.h>\n"
++"#include <sys/socket.h>\n"
++"#include <sys/un.h>\n"
++"#include <netinet/in.h>\n"
++"#include <arpa/inet.h>\n"
++"#include <stddef.h>\n"
+ "\n"
+ "typedef void *ryz_any;\n"
+ "\n"
+@@ -923,9 +957,8 @@
+ "    if(!a)a=\"\"; if(!b)b=\"\";\n"
+ "    size_t la=strlen(a),lb=strlen(b); char *r=malloc(la+lb+1);\n"
+ "    memcpy(r,a,la); memcpy(r+la,b,lb+1); return r; }\n"
+-"static char  _ryz_itoa[64];\n"
+-"static const char *ryz_int_tostr(int64_t v){snprintf(_ryz_itoa,64,\"%lld\",(long long)v);return _ryz_itoa;}\n"
+-"static const char *ryz_dbl_tostr(double v){snprintf(_ryz_itoa,64,\"%g\",v);return _ryz_itoa;}\n"
++"static char *ryz_int_tostr(int64_t v){char *r=malloc(32);snprintf(r,32,\"%lld\",(long long)v);return r;}\n"
++"static char *ryz_dbl_tostr(double v){char *r=malloc(32);snprintf(r,32,\"%g\",v);return r;}\n"
+ "static const char *ryz_tostr(ryz_any v){\n"
+ "    /* heuristic: if looks like a valid string pointer, use it; else int */\n"
+ "    return v ? (const char *)v : \"\"; }\n"
+@@ -1045,19 +1078,56 @@
+ "        if(used+r+1>cap){cap=cap?cap*2:8192;buf=realloc(buf,cap);}\n"
+ "        memcpy(buf+used,tmp,r); used+=r; }\n"
+ "    pclose(fp); if(!buf)buf=malloc(1); buf[used]=0; return buf; }\n"
++"/* ipc: abstract-namespace AF_UNIX SEQPACKET (Minix SEND/RECEIVE over Linux) */\n"
++"static socklen_t ryz__un_addr(struct sockaddr_un *a,const char *name){\n"
++"    memset(a,0,sizeof(*a)); a->sun_family=AF_UNIX;\n"
++"    size_t n=strlen(name); if(n>sizeof(a->sun_path)-2) n=sizeof(a->sun_path)-2;\n"
++"    a->sun_path[0]=0; memcpy(a->sun_path+1,name,n);\n"
++"    return (socklen_t)(offsetof(struct sockaddr_un,sun_path)+1+n); }\n"
++"static int64_t ryz_ipc_listen(const char *name){\n"
++"    int s=socket(AF_UNIX,SOCK_SEQPACKET|SOCK_CLOEXEC,0); if(s<0)return -1;\n"
++"    struct sockaddr_un a; socklen_t l=ryz__un_addr(&a,name);\n"
++"    if(bind(s,(struct sockaddr*)&a,l)<0){close(s);return -1;}\n"
++"    if(listen(s,16)<0){close(s);return -1;} return s; }\n"
++"static int64_t ryz_ipc_connect(const char *name){\n"
++"    int s=socket(AF_UNIX,SOCK_SEQPACKET|SOCK_CLOEXEC,0); if(s<0)return -1;\n"
++"    struct sockaddr_un a; socklen_t l=ryz__un_addr(&a,name);\n"
++"    if(connect(s,(struct sockaddr*)&a,l)<0){close(s);return -1;} return s; }\n"
++"static int64_t ryz_ipc_accept(int64_t fd){ return accept4((int)fd,NULL,NULL,SOCK_CLOEXEC); }\n"
++"static char *ryz_ipc_recv(int64_t fd){\n"
++"    char *b=malloc(65537); if(!b)return strdup(\"\");\n"
++"    ssize_t n=recv((int)fd,b,65536,0); if(n<0)n=0; b[n]=0; return b; }\n"
++"static int64_t ryz_ipc_send(int64_t fd,const char *msg){\n"
++"    return (int64_t)send((int)fd,msg,strlen(msg),MSG_NOSIGNAL); }\n"
++"static int64_t ryz_ipc_close(int64_t fd){ return close((int)fd); }\n"
++"static int64_t ryz_ipc_listen_tcp(int64_t port){\n"
++"    int s=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0); if(s<0)return -1;\n"
++"    int one=1; setsockopt(s,SOL_SOCKET,SO_REUSEADDR,&one,sizeof one);\n"
++"    struct sockaddr_in a; memset(&a,0,sizeof a); a.sin_family=AF_INET;\n"
++"    a.sin_port=htons((unsigned short)port); a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);\n"
++"    if(bind(s,(struct sockaddr*)&a,sizeof a)<0){close(s);return -1;}\n"
++"    if(listen(s,16)<0){close(s);return -1;} return s; }\n"
++"static int64_t ryz_ipc_connect_tcp(int64_t port){\n"
++"    int s=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0); if(s<0)return -1;\n"
++"    struct sockaddr_in a; memset(&a,0,sizeof a); a.sin_family=AF_INET;\n"
++"    a.sin_port=htons((unsigned short)port); a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);\n"
++"    if(connect(s,(struct sockaddr*)&a,sizeof a)<0){close(s);return -1;} return s; }\n"
+ "static ryz_map *ryz_system(const char *cmd){\n"
+ "    int rc=system(cmd);\n"
+ "    ryz_map *m=ryz_map_new();\n"
+ "    ryz_map_set(m,\"code\",(ryz_any)(intptr_t)WEXITSTATUS(rc));\n"
+ "    return m; }\n"
+ "static ryz_map *ryz_exec(const char *prog, ...) {\n"
+-"    /* collect args into argv */\n"
+-"    char *argv[64]; int argc=0; argv[argc++]=(char*)prog;\n"
++"    /* tokenize prog, keep subsequent args intact */\n"
++"    char *argv[128]; int argc=0;\n"
++"    char *prog_dup = strdup(prog);\n"
++"    char *p = strtok(prog_dup, \" \\t\");\n"
++"    while(p && argc<127) { argv[argc++]=p; p=strtok(NULL, \" \\t\"); }\n"
+ "    va_list ap; va_start(ap,prog);\n"
+ "    const char *a;\n"
+-"    while((a=va_arg(ap,const char*))!=NULL&&argc<63) argv[argc++]=(char*)a;\n"
++"    while((a=va_arg(ap,const char*))!=NULL && argc<127) argv[argc++]=(char*)a;\n"
+ "    va_end(ap); argv[argc]=NULL;\n"
+-"    int pout[2],perr[2]; pipe(pout); pipe(perr);\n"
++"    int pout[2],perr[2]; if(pipe(pout)<0) _exit(1); if(pipe(perr)<0) _exit(1);\n"
+ "    pid_t pid=fork();\n"
+ "    if(pid==0){\n"
+ "        close(pout[0]); dup2(pout[1],1); close(pout[1]);\n"

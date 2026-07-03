@@ -1,0 +1,57 @@
+// ds-server.ryz — Ryznix datastore (DS), pure RYZ on native ipc.* sockets.
+// Abstract endpoint @ryznix.ds, Minix-style request/reply.
+// Protocol: PING | SET k v... | GET k | DEL k | LIST
+// Store: /data/local/tmp/ryznix/ds.store (key=value lines; shell-uid writable).
+
+fn store() -> string { return "/data/local/tmp/ryznix/ds.store" }
+
+fn handle(msg: string) -> string {
+    let m = str.strip(msg)
+    let parts = str.split(m, " ")
+    let n = list.len(parts)
+    if n == 0 { return "ERR empty" }
+    let cmd = list.get(parts, 0)
+    let sp = store()
+    if cmd == "PING" { return "PONG" }
+    if cmd == "LIST" { return fmt.shell(fmt.sprintf("cat {} 2>/dev/null", sp)) }
+    if cmd == "GET" {
+        if n < 2 { return "ERR need key" }
+        let key = list.get(parts, 1)
+        return str.strip(fmt.shell(fmt.sprintf("grep '^{}=' {} 2>/dev/null | head -1 | cut -d= -f2-", key, sp)))
+    }
+    if cmd == "DEL" {
+        if n < 2 { return "ERR need key" }
+        let key = list.get(parts, 1)
+        fmt.shell(fmt.sprintf("grep -v '^{}=' {} > {}.tmp 2>/dev/null; mv {}.tmp {} 2>/dev/null", key, sp, sp, sp, sp))
+        return "OK"
+    }
+    if cmd == "SET" {
+        if n < 2 { return "ERR need key" }
+        let key = list.get(parts, 1)
+        mut val = ""
+        mut i = 2
+        while i < n {
+            if i > 2 { val = val + " " }
+            val = val + list.get(parts, i)
+            i = i + 1
+        }
+        fmt.shell(fmt.sprintf("mkdir -p /data/local/tmp/ryznix; grep -v '^{}=' {} > {}.tmp 2>/dev/null; mv {}.tmp {} 2>/dev/null; echo '{}={}' >> {}", key, sp, sp, sp, sp, key, val, sp))
+        return "OK"
+    }
+    return "ERR unknown"
+}
+
+fn main() {
+    fmt.shell("mkdir -p /data/local/tmp/ryznix")
+    let fd = ipc.listen("ryznix.ds")
+    if fd < 0 {
+        fmt.println("ds-server: listen @ryznix.ds failed")
+        return
+    }
+    while 1 == 1 {
+        let c = ipc.accept(fd)
+        let msg = ipc.recv(c)
+        ipc.send(c, handle(msg))
+        ipc.close(c)
+    }
+}

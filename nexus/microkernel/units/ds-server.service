@@ -1,0 +1,4 @@
+Description=Ryznix datastore server
+ExecStart=/data/local/tmp/ds-server
+Restart=always
+PidMarker=ds-server

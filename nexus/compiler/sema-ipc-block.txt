@@ -1,0 +1,5 @@
+157:    /* ipc module — recv returns a message string; everything else an fd/int */
+158-    if (strcmp(mod,"ipc")==0) {
+159-        if (strcmp(fn,"recv")==0) return type_prim(TY_STRING);
+160-        return type_prim(TY_I64);
+161-    }

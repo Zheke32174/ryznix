@@ -1,0 +1,7 @@
+id=ryznix_nexus
+name=Ryznix Nexus
+version=v1.0.0
+versionCode=1
+author=zheke32174 + Claude
+description=One WebUI to command the entire Ryznix microkernel (ds/pm/vfs/rs/bridge) + Android device, shell-uid. Replaces many single-purpose plugins with one control panel: dashboard, services, processes, packages, files, datastore, live RYZ compiler, terminal, logcat.
+axeronPlugin=1

@@ -1,0 +1,4 @@
+Description=Ryznix reincarnation/registry server
+ExecStart=/data/local/tmp/rs-server
+Restart=always
+PidMarker=rs-server

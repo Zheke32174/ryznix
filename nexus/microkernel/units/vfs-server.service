@@ -1,0 +1,4 @@
+Description=Ryznix VFS server
+ExecStart=/data/local/tmp/vfs-server
+Restart=always
+PidMarker=vfs-server

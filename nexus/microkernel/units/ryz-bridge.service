@@ -1,0 +1,4 @@
+Description=Ryznix privilege bridge (loopback TCP 9770)
+ExecStart=/data/local/tmp/ryz-bridge
+Restart=always
+PidMarker=ryz-bridge
