@@ -1,0 +1,19 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# ryznix-down — stop the Ryznix control plane: microkernel (ds/pm/vfs/rs), ryz-bridge,
+# app-watchdog, and the gateway. Leaves tailscaled + the tailnet serves UP so you stay
+# connected. Run:  ryznix-down   (restore with: ryznix-up)
+export PATH=$HOME/bin:$PREFIX/bin:$PATH
+RISH="$HOME/rish"
+LOG="$HOME/.ryznix/up.log"
+say(){ echo "[$(date +%H:%M:%S 2>/dev/null)] down: $*"; echo "[$(date +%H:%M:%S 2>/dev/null)] down: $*" >> "$LOG" 2>/dev/null; }
+
+say "stopping gateway (:8088)"
+pkill -f ryznix-gateway.py 2>/dev/null
+
+say "stopping microkernel + bridge + watchdog (tailscaled stays up)"
+printf '%s\n' 'T=/data/local/tmp
+for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do $T/ryzsystemd stop $s >/dev/null 2>&1; done
+echo stopped' | timeout 40 "$RISH" 2>/dev/null | tail -1
+
+termux-wake-unlock 2>/dev/null
+say "done — tailscaled + serves (8088/5555) still up. Restore: ryznix-up"

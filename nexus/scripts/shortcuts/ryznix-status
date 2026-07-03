@@ -1,0 +1,3 @@
+#!/data/data/com.termux/files/usr/bin/sh
+termux-wake-lock 2>/dev/null
+exec /data/data/com.termux/files/home/bin/ryznix-status
