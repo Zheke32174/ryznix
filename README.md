@@ -41,6 +41,7 @@ This repo is the public-facing showcase for the Ryznix runtime/subsystem work. S
 - `scripts/`  — the build/deploy pipeline (lib staging via the `/sdcard` SELinux bridge, Ubuntu rootfs, the self-healing installer, the corruption sweep)
 - `examples/` — C demos for the elevate-to-native loop
 - `SUPERLINUX-HOWTO.md` — the deep technical writeup (every wall and workaround)
+- `nexus/` — **the control plane, v2.** The MINIX quartet (ds/pm/vfs/rs) rebuilt in RYZ over **abstract AF_UNIX** instead of FIFOs (the `shell` domain can't make FIFOs — SELinux), a loopback-TCP **privilege bridge** (app-uid ↔ shell-uid), `ryzsystemd` supervision, RYZ compiler `ipc.*` socket primitives, and **Ryznix Nexus** — one WebUI (AX Manager plugin + Tailscale gateway) that commands the whole kernel + Android from a phone or any browser. See [nexus/README.md](nexus/README.md).
 
 ## Key techniques
 
