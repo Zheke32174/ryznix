@@ -1,0 +1,11 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# ryznix-status — one-glance health of the whole stack.  Usage:  ryznix-status
+export PATH=$HOME/bin:$PREFIX/bin:$PATH
+echo "gateway(:8088 termux): $(pgrep -f ryznix-gateway.py >/dev/null && echo UP || echo DOWN)"
+printf '%s\n' '
+echo "ryzsystemd:"; /data/local/tmp/ryzsystemd status 2>&1 | sed "s/^/  /"
+printf "probes: "; for s in ds pm vfs rs; do printf "%s=%s " $s "$(timeout 3 /data/local/tmp/ryz-ipc ryznix.$s PING 2>/dev/null)"; done; echo
+echo "watchdog=[$(pgrep -x app-watchdog | tr "\n" " ")]  bridge=[$(pgrep -x ryz-bridge | tr "\n" " ")]"
+echo "providers: shizuku=$(pgrep -f shizuku_server >/dev/null && echo up || echo DOWN) stellar=$(pgrep -f stellar >/dev/null && echo up || echo DOWN) axeron=$(pgrep -f axeron_server >/dev/null && echo up || echo DOWN)"
+echo "adbd :5555 listening: $(netstat -ltn 2>/dev/null | grep -q ":5555 " && echo yes || echo no)"
+echo "tailscale serves: $(/data/local/tmp/tailscale --socket=@tailscaled serve status 2>/dev/null | grep -oE "[0-9]+:[0-9]+ |:[0-9]{3,5} " | grep -oE "[0-9]{3,5}" | sort -u | tr "\n" " ")"' | timeout 25 "$HOME/rish" 2>&1

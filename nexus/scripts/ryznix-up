@@ -1,0 +1,57 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# ryznix-up — bring the ENTIRE Ryznix stack up, from cold. Idempotent + forceful.
+# Run it after a reboot or any outage; no Claude required:  ryznix-up
+# Also invoked by Termux:Boot and by the keepalive when the stack is unhealthy.
+#
+# Order matters: Shizuku (privilege base) -> microkernel/tailscaled (shell uid) ->
+# tailscale serves (8088 web deck, 5555 adb) -> gateway (termux uid) -> status.
+export PATH=$HOME/bin:$PREFIX/bin:$PATH
+RISH="$HOME/rish"
+LOG="$HOME/.ryznix/up.log"
+ts(){ date +%H:%M:%S 2>/dev/null || echo now; }
+say(){ echo "[$(ts)] $*"; echo "[$(ts)] $*" >> "$LOG" 2>/dev/null; }
+
+say "=== ryznix-up ==="
+termux-wake-lock 2>/dev/null
+
+# 1) Shizuku/Stellar/Axeron. If rish (Shizuku) isn't answering, privguard revives it
+#    over authorized loopback-ADB (survives reboot; no rish needed), then wait for it.
+if ! echo 'echo ok' | timeout 30 "$RISH" 2>/dev/null | grep -q ok; then
+  say "Shizuku not up -> privguard (loopback-adb)"
+  [ -x "$HOME/.termux/boot/10-privguard.sh" ] && sh "$HOME/.termux/boot/10-privguard.sh" >/dev/null 2>&1
+  i=0
+  while [ "$i" -lt 8 ]; do
+    sleep 5
+    echo 'echo ok' | timeout 20 "$RISH" 2>/dev/null | grep -q ok && { say "Shizuku up"; break; }
+    i=$((i+1))
+  done
+else
+  say "Shizuku already up"
+fi
+
+# 2) Microkernel + tailscaled + watchdog + serves — one rish round-trip (shell uid).
+say "booting microkernel + tailscaled + tailscale serves"
+printf '%s\n' '
+T=/data/local/tmp
+for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do $T/ryzsystemd stop $s >/dev/null 2>&1; done
+sleep 1
+setsid $T/ryzsystemd boot </dev/null >$T/ryzboot.log 2>&1 &
+sleep 3
+$T/tailscale --socket=@tailscaled serve --bg --tcp 8088 tcp://127.0.0.1:8088 >/dev/null 2>&1
+$T/tailscale --socket=@tailscaled serve --bg --tcp 5555 tcp://127.0.0.1:5555 >/dev/null 2>&1
+echo booted' | timeout 90 "$RISH" 2>/dev/null | tail -1
+
+# 3) Gateway (termux uid).
+if ! pgrep -f ryznix-gateway.py >/dev/null 2>&1; then
+  say "starting gateway (:8088)"
+  nohup python3 "$HOME/.ryznix/gateway/ryznix-gateway.py" >"$HOME/.ryznix/gateway/gw.log" 2>&1 &
+fi
+
+# 4) Status.
+sleep 6
+say "status:"
+printf '%s\n' '
+/data/local/tmp/ryzsystemd status 2>&1 | sed "s/^/    /"
+printf "    probes: "; for s in ds pm vfs rs; do printf "%s=%s " $s "$(timeout 3 /data/local/tmp/ryz-ipc ryznix.$s PING 2>/dev/null)"; done; echo
+printf "    watchdog=%s bridge=%s\n" "$(pgrep -x app-watchdog | head -1)" "$(pgrep -x ryz-bridge | head -1)"' | timeout 30 "$RISH" 2>/dev/null
+say "done. tailnet: ryznix-phone.tail8b77cf.ts.net  (:8088 web deck  ·  :5555 adb)"

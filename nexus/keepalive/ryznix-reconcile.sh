@@ -35,24 +35,9 @@ H=$(printf '%s' "$OUT" | sed -n 's/.*RYZNIX_HEALTH:\([01]\).*/\1/p' | tail -1)
 if [ "$H" = "1" ]; then
   log "healthy"
 else
-  # Not confirmed healthy (down, OR the probe was just slow). BOOT regardless — a clean
-  # stop clears half-dead supervisors, boot brings everything up, re-assert tailscale serve.
-  printf '%s\n' '
-for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do
-  /data/local/tmp/ryzsystemd stop "$s" >/dev/null 2>&1
-done
-sleep 1
-setsid /data/local/tmp/ryzsystemd boot </dev/null >/data/local/tmp/ryzboot.log 2>&1 &
-/data/local/tmp/tailscale --socket=@tailscaled serve --bg --tcp 8088 tcp://127.0.0.1:8088 >/dev/null 2>&1
-/data/local/tmp/tailscale --socket=@tailscaled serve --bg --tcp 5555 tcp://127.0.0.1:5555 >/dev/null 2>&1' \
-    | timeout 90 "$RISH" 2>/dev/null
-  RC=$?
-  if [ -z "$OUT" ] && [ "$RC" -ne 0 ]; then
-    # rish itself failed AND probe was empty -> Shizuku genuinely down. Revive it for next tick.
-    [ -x "$HOME/.termux/boot/10-privguard.sh" ] && sh "$HOME/.termux/boot/10-privguard.sh" >/dev/null 2>&1 &
-    log "rish unusable (Shizuku down) -> privguard; heal next tick"
-  else
-    log "not-healthy (H=[$H]) -> stop+boot"
-  fi
+  # Not confirmed healthy (down, OR the probe was just slow). Run the single canonical
+  # bring-up: ryznix-up handles Shizuku revival (privguard), boot, serves, and gateway.
+  log "not healthy (H=[$H]) -> ryznix-up"
+  sh "$HOME/bin/ryznix-up" >>"$LOG" 2>&1
 fi
 log "done"
