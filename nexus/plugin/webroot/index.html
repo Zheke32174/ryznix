@@ -159,7 +159,9 @@ async function renderDash(el){
   document.getElementById("dnet").textContent=await q(`${T}/ryzsystemd status 2>/dev/null | sed 's/^ *//'`);
 }
 async function renderSvc(el){
-  el.innerHTML=`<div class="toolbar"><button class="act" onclick="show('svc')">⟳ Refresh</button></div><div id="svl">…</div>`;
+  el.innerHTML=`<div class="toolbar"><button class="act" onclick="show('svc')">⟳ Refresh</button>
+    <button class="act" style="color:var(--acc)" onclick="bootRyznix()">⏻ Boot Ryznix</button></div>
+    <div class="sub" id="bootmsg" style="margin-bottom:6px"></div><div id="svl">…</div>`;
   // ryzsystemd mislabels shell-script units (e.g. app-watchdog) as "dead" because their
   // comm != PidMarker. Cross-check real liveness with pgrep so the panel tells the truth.
   const raw=await sh(`${T}/ryzsystemd status 2>/dev/null | tail -n +2 | while read n s; do echo "$n|$s|$(pgrep -x "$n" >/dev/null 2>&1 && echo UP || echo DOWN)"; done`);
@@ -174,6 +176,13 @@ async function renderSvc(el){
   }).join("")||"<span class='muted'>no units</span>";
 }
 async function svcAct(a,n){ await sh(`setsid ${T}/ryzsystemd ${a} ${n} </dev/null >/dev/null 2>&1 &`); setTimeout(()=>show('svc'),1200); }
+async function bootRyznix(){
+  const m=document.getElementById("bootmsg"); if(m)m.textContent="booting microkernel…";
+  // clean-restart the whole stack (idempotent): stop any half-dead units, then boot all
+  await sh(`for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do ${T}/ryzsystemd stop $s >/dev/null 2>&1; done; sleep 1; setsid ${T}/ryzsystemd boot </dev/null >/dev/null 2>&1 &`);
+  if(m)m.textContent="boot issued — refreshing in 5s…";
+  setTimeout(()=>show('svc'),5000);
+}
 
 async function renderProc(el){
   el.innerHTML=`<div class="toolbar"><input class="grow" id="pf" placeholder="filter…" oninput="filterProc()"><button class="act" onclick="show('proc')">⟳</button></div>
