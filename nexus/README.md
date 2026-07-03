@@ -26,6 +26,20 @@ without root, on device.
                               └────────────────┘
 ```
 
+## The deck
+
+The Ryznix Nexus command deck — one WebUI, every control running as **shell uid**
+via `axeron.exec` (note the `AXERON · shell` chip). Live state is read on open:
+toggles show ON/OFF, sliders snap to current values. `settings`/`svc`/`cmd`/`wm`/`am`
+work directly; raw sysfs writes (CPU governor, thermal) report if they need root.
+
+| ⚡ Power & Battery | 🖥 Display | 🛠 System & Dev |
+|:---:|:---:|:---:|
+| [![Power & Battery](docs/img/deck-power-battery.jpg)](docs/img/deck-power-battery.jpg) | [![Display](docs/img/deck-display.jpg)](docs/img/deck-display.jpg) | [![System &amp; Dev](docs/img/deck-system.jpg)](docs/img/deck-system.jpg) |
+
+*Also: Thermal, Radios, Processes, Packages, Files, Datastore, a live RYZ compiler,
+Terminal, Logcat — and a Danger Zone. Same page is servable over Tailscale.*
+
 ## Why it's interesting
 
 - **SELinux without root.** The `shell` domain can't create FIFOs or path-based unix
