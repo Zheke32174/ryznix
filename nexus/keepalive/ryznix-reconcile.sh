@@ -43,7 +43,8 @@ for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do
 done
 sleep 1
 setsid /data/local/tmp/ryzsystemd boot </dev/null >/data/local/tmp/ryzboot.log 2>&1 &
-/data/local/tmp/tailscale --socket=@tailscaled serve --bg --tcp 8088 tcp://127.0.0.1:8088 >/dev/null 2>&1' \
+/data/local/tmp/tailscale --socket=@tailscaled serve --bg --tcp 8088 tcp://127.0.0.1:8088 >/dev/null 2>&1
+/data/local/tmp/tailscale --socket=@tailscaled serve --bg --tcp 5555 tcp://127.0.0.1:5555 >/dev/null 2>&1' \
     | timeout 90 "$RISH" 2>/dev/null
   RC=$?
   if [ -z "$OUT" ] && [ "$RC" -ne 0 ]; then

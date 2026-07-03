@@ -400,7 +400,7 @@ const DECK=[
    {t:"toggle",label:"Don't keep activities",get:`${G} global always_finish_activities`,on:`${A} global always_finish_activities 1`,off:`${A} global always_finish_activities 0`},
    {t:"toggle",label:"Show taps",get:`${G} system show_touches`,on:`${A} system show_touches 1`,off:`${A} system show_touches 0`},
    {t:"toggle",label:"Pointer location",get:`${G} system pointer_location`,on:`${A} system pointer_location 1`,off:`${A} system pointer_location 0`},
-   {t:"toggle",label:"ADB over network (5555)",get:`${G} global adb_tcp_port`,on:"setprop service.adb.tcp.port 5555;setprop ctl.restart adbd 2>&1;echo 5555",off:"setprop service.adb.tcp.port -1;setprop ctl.restart adbd 2>&1;echo off",onval:"5555"},
+   {t:"read",label:"ADB over network (5555)",cmd:"echo \"port=$(getprop service.adb.tcp.port)  wifi_debug=$(settings get global adb_wifi_enabled)\"; (netstat -ltn 2>/dev/null | grep -q ':5555 ' && echo 'adbd: LISTENING on :5555 (already enabled)' || echo 'adbd: NOT listening'); echo; echo 'Connect over Tailscale:'; echo '  adb connect ryznix-phone.tail8b77cf.ts.net:5555'; echo '(authorize the host on the phone when the ADB dialog appears; shell uid cannot restart adbd)'"},
    {t:"toggle",label:"Immersive (hide bars)",get:`${G} global policy_control`,on:`${A} global policy_control immersive.full=*`,off:`${A} global policy_control null`,onval:"immersive.full=*"},
    {t:"action",label:"Clear logcat",cmd:"logcat -c 2>&1;echo cleared"},
    {t:"action",label:"Reset ALL animations to 1x",cmd:`${A} global window_animation_scale 1;${A} global transition_animation_scale 1;${A} global animator_duration_scale 1;echo ok`},
