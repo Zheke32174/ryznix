@@ -142,7 +142,11 @@ function refreshAll(){ markMode(); show(cur); }
 async function renderDash(el){
   el.innerHTML=`<div class="grid" id="dg"><div class="card"><div class="k">loading…</div></div></div>
     <h2>Microkernel</h2><div id="dsvc" class="muted">probing…</div>
-    <h2>Network</h2><pre class="out" id="dnet">…</pre>`;
+    <h2>Network</h2><pre class="out" id="dnet">…</pre>
+    <h2>Recovery</h2>
+    <div class="toolbar"><button class="act" style="color:var(--acc)" onclick="bootFromDash()">⏻ Boot Ryznix (kernel + serves)</button></div>
+    <div class="sub" id="dbootmsg" style="margin:-2px 2px 6px"></div>
+    <pre class="out" id="drec">…</pre>`;
   const q=async(c)=>((await sh(c))||"?");
   const model=await q("getprop ro.product.model");
   const rel=await q("getprop ro.build.version.release");
@@ -157,6 +161,15 @@ async function renderDash(el){
   const rows=(st||"").trim().split("\n").filter(Boolean).map(l=>{const [n,s]=l.split(" ");return `<div class="row"><div class="name">${esc(n)}</div><div class="chip ${s==="UP"?"up":"down"}">${esc(s||"?")}</div></div>`;}).join("");
   document.getElementById("dsvc").innerHTML=rows||"<span class='muted'>rs-server not responding</span>";
   document.getElementById("dnet").textContent=await q(`${T}/ryzsystemd status 2>/dev/null | sed 's/^ *//'`);
+  document.getElementById("drec").textContent=await q(`echo "providers: shizuku=$(pgrep -f shizuku_server >/dev/null && echo up || echo DOWN)  axeron=$(pgrep -f axeron_server >/dev/null && echo up || echo DOWN)"; echo "adbd :5555: $(netstat -ltn 2>/dev/null | grep -q ':5555 ' && echo listening || echo 'not listening')"; echo "tailscale serves: $(${T}/tailscale --socket=@tailscaled serve status 2>/dev/null | grep -oE ':[0-9]{3,5} ' | grep -oE '[0-9]+' | sort -u | tr '\\n' ' ')"; echo "web deck:  ryznix-phone.tail8b77cf.ts.net:8088"; echo "adb:       adb connect ryznix-phone.tail8b77cf.ts.net:5555"`);
+}
+// Boot button lives on the dashboard too; reuse bootRyznix's logic, report into dbootmsg.
+async function bootFromDash(){
+  const m=document.getElementById("dbootmsg"); if(m)m.textContent="bringing Ryznix up (kernel + serves)…";
+  await sh(`for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do ${T}/ryzsystemd stop $s >/dev/null 2>&1; done; sleep 1; setsid ${T}/ryzsystemd boot </dev/null >/dev/null 2>&1 &`);
+  await sh(`${T}/tailscale --socket=@tailscaled serve --bg --tcp 8088 tcp://127.0.0.1:8088 >/dev/null 2>&1; ${T}/tailscale --socket=@tailscaled serve --bg --tcp 5555 tcp://127.0.0.1:5555 >/dev/null 2>&1; echo ok`);
+  if(m)m.textContent="issued — refreshing dashboard in 6s…";
+  setTimeout(()=>show('dash'),6000);
 }
 async function renderSvc(el){
   el.innerHTML=`<div class="toolbar"><button class="act" onclick="show('svc')">⟳ Refresh</button>
@@ -177,10 +190,12 @@ async function renderSvc(el){
 }
 async function svcAct(a,n){ await sh(`setsid ${T}/ryzsystemd ${a} ${n} </dev/null >/dev/null 2>&1 &`); setTimeout(()=>show('svc'),1200); }
 async function bootRyznix(){
-  const m=document.getElementById("bootmsg"); if(m)m.textContent="booting microkernel…";
-  // clean-restart the whole stack (idempotent): stop any half-dead units, then boot all
+  // Full shell-uid bring-up = the ryznix-up parts that don't need Termux: clean-restart the
+  // microkernel + tailscaled + watchdog, then re-assert the tailscale serves (8088 web, 5555 adb).
+  const m=document.getElementById("bootmsg"); if(m)m.textContent="bringing Ryznix up (kernel + serves)…";
   await sh(`for s in ds-server pm-server vfs-server rs-server ryz-bridge app-watchdog; do ${T}/ryzsystemd stop $s >/dev/null 2>&1; done; sleep 1; setsid ${T}/ryzsystemd boot </dev/null >/dev/null 2>&1 &`);
-  if(m)m.textContent="boot issued — refreshing in 5s…";
+  await sh(`${T}/tailscale --socket=@tailscaled serve --bg --tcp 8088 tcp://127.0.0.1:8088 >/dev/null 2>&1; ${T}/tailscale --socket=@tailscaled serve --bg --tcp 5555 tcp://127.0.0.1:5555 >/dev/null 2>&1; echo ok`);
+  if(m)m.textContent="boot + serves issued — refreshing in 5s…";
   setTimeout(()=>show('svc'),5000);
 }
 
