@@ -1,0 +1,32 @@
+{
+  "schema": "ryznix.runtime/v1",
+  "expected_uid": 2000,
+  "tmp_root": "/data/local/tmp",
+  "rish": "~/rish",
+  "ubuntu_root": "/data/local/tmp/ubuntu",
+  "busybox": "/data/local/tmp/busybox",
+  "ryzkern": "/data/local/tmp/ryzkern",
+  "run_dir": "/data/local/tmp/run",
+  "servers": {
+    "ds": "/data/local/tmp/ds-server",
+    "pm": "/data/local/tmp/pm-server"
+  },
+  "nix": {
+    "tt": "~/tt",
+    "boot_root": "/data/local/tmp/nix-boot",
+    "store": "/data/local/tmp/nix-boot/store",
+    "shim": "/data/local/tmp/nix-boot/shim/lib",
+    "var": "/data/local/tmp/nix-boot/var",
+    "home": "/data/local/tmp/nix-boot/home",
+    "glibc_store_name": "REPLACE_WITH_LOCKED_GLIBC_STORE_BASENAME",
+    "nix_store_name": "REPLACE_WITH_LOCKED_NIX_STORE_BASENAME",
+    "ca_bundle_store_name": "REPLACE_WITH_LOCKED_CA_STORE_BASENAME",
+    "ca_bundle_relative_path": "etc/ssl/certs/ca-bundle.crt"
+  },
+  "claims": {
+    "authoritative_kernel": false,
+    "root_authority": false,
+    "core_runtime_uses_proot": false,
+    "nix_compatibility_launcher_uses_proot": true
+  }
+}
