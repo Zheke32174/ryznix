@@ -1,3 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# rk — quick ryzkern (kernel exec authority) from Termux:  rk exec <bin> [args] | rk route <bin> | rk status | rk heal
-printf 'exec /data/local/tmp/ryzkern %q ' "$@" | sed 's/ $//' | { cat; echo; } | "$HOME/rish"
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$HERE/ryznix-runtime.py" kernel "$@"
