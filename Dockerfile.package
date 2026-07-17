@@ -1,16 +1,27 @@
-FROM alpine:3.20
+FROM python:3.12-alpine
 
-ARG REPO_NAME="ryznix"
+ARG VERSION=dev
 ARG SOURCE_URL="https://github.com/Zheke32174/ryznix"
-ARG VERSION="0.1.0"
 
-LABEL org.opencontainers.image.title="ryznix"
-LABEL org.opencontainers.image.description="Ryznix public showcase source package for GitHub Packages."
+LABEL org.opencontainers.image.title="Ryznix"
+LABEL org.opencontainers.image.description="Ryznix public source and runtime-contract package"
 LABEL org.opencontainers.image.source="$SOURCE_URL"
 LABEL org.opencontainers.image.version="$VERSION"
 
-WORKDIR /opt/package
-COPY . /opt/package
-RUN chmod -R a+rX /opt/package
+RUN addgroup -S ryznix && adduser -S -G ryznix -h /home/ryznix ryznix
+WORKDIR /opt/ryznix
 
-CMD ["sh", "-lc", "echo 'ryznix package mounted at /opt/package'; find /opt/package -maxdepth 2 -type f | sort | head -200"]
+COPY VERSION README.md SHOWCASE.md runtime.contract.json /opt/ryznix/
+COPY config/runtime.example.json /opt/ryznix/config/runtime.example.json
+COPY bin/ryznix-runtime.py bin/nixp.py /opt/ryznix/bin/
+COPY docs/publication-checklist.md /opt/ryznix/docs/publication-checklist.md
+COPY docs/proof/README.md /opt/ryznix/docs/proof/README.md
+
+RUN test "$VERSION" = "dev" || test "$VERSION" = "v$(cat VERSION)" \
+    && python3 -m py_compile /opt/ryznix/bin/ryznix-runtime.py /opt/ryznix/bin/nixp.py \
+    && python3 -m json.tool /opt/ryznix/runtime.contract.json >/dev/null \
+    && python3 -m json.tool /opt/ryznix/config/runtime.example.json >/dev/null \
+    && chown -R ryznix:ryznix /opt/ryznix
+
+USER ryznix
+CMD ["python3", "/opt/ryznix/bin/ryznix-runtime.py", "--help"]
