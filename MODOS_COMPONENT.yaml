@@ -1,0 +1,37 @@
+apiVersion: modos.pleiades/v1alpha1
+kind: Component
+metadata:
+  name: ryznix-android-node-substrate
+  repository: Zheke32174/ryznix
+  visibility: public
+  lifecycle: operational
+  defaultBranch: main
+spec:
+  roles:
+    - android-rootless-node-substrate
+    - microkernel-research
+    - mobile-domain-environment
+  authority: local-enforcement
+  inputs:
+    - android-host-capabilities
+    - node-agent-contracts
+    - package-and-service-declarations
+  outputs:
+    - mobile-node-services
+    - substrate-observations
+    - adapter-candidates
+  capabilitiesProvided:
+    - node.android.substrate
+    - service.mobile.local
+    - package.mobile.resolve
+  capabilitiesRequired:
+    - host.android.local
+    - filesystem.mobile.scoped
+    - policy.local.read
+  dataClasses:
+    - public
+    - private
+    - untrusted
+  failurePolicy: degrade-local
+  promotionPolicy: signed-pr
+  notes: Ryznix is a local Android substrate and future MODOS node environment, not the over-kernel itself.
