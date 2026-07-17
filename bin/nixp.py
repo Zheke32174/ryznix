@@ -86,7 +86,27 @@ def render_script(config: dict[str, Any], arguments: list[str]) -> str:
     nix_package = store_name(nix["nix_store_name"], "nix.nix_store_name")
     ca_store = store_name(nix["ca_bundle_store_name"], "nix.ca_bundle_store_name")
     ca_rel = relative_path(nix["ca_bundle_relative_path"], "nix.ca_bundle_relative_path")
-    nix_args = shlex.join(arguments)
+
+    command = (
+        'exec proot '
+        '-b "$S:/nix/store" '
+        '-b "$SHIM:/nix/store/shimlib" '
+        '-b "$VAR:/nix/var" '
+        '-b "$HOMEDIR:/root" '
+        '-b /dev -b /proc -b /sys -b /data/local/tmp '
+        '-b "$PREFIX/etc/resolv.conf:/etc/resolv.conf" '
+        '-w / '
+        '"/nix/store/$GLIBC/lib/ld-linux-aarch64.so.1" '
+        '--library-path "$LP" '
+        '"/nix/store/$NIXPKG/bin/nix" '
+        "--extra-experimental-features 'nix-command flakes' "
+        "--option substituters 'https://cache.nixos.org' "
+        '--option ssl-cert-file "$CACERT" '
+        '--option use-sqlite-wal false '
+        "--option build-users-group ''"
+    )
+    if arguments:
+        command += " " + shlex.join(arguments)
 
     lines = [
         "set -eu",
@@ -111,21 +131,7 @@ def render_script(config: dict[str, Any], arguments: list[str]) -> str:
         'mkdir -p "$BOOT/tmp" "$HOMEDIR/.cache/nix/tarball-cache/objects" "$HOMEDIR/.cache/nix/tarball-cache/incoming"',
         'export HOME=/root USER=root TMPDIR="$BOOT/tmp" NIX_SSL_CERT_FILE="$CACERT"',
         'export NIX_STATE_DIR=/nix/var NIX_LOG_DIR=/nix/var/log/nix',
-        "exec proot \\",
-        '  -b "$S:/nix/store" \\\',
-        '  -b "$SHIM:/nix/store/shimlib" \\\',
-        '  -b "$VAR:/nix/var" \\\',
-        '  -b "$HOMEDIR:/root" \\\',
-        '  -b /dev -b /proc -b /sys -b /data/local/tmp \\\',
-        '  -b "$PREFIX/etc/resolv.conf:/etc/resolv.conf" \\\',
-        '  -w / \\\',
-        '  "/nix/store/$GLIBC/lib/ld-linux-aarch64.so.1" --library-path "$LP" \\\',
-        '  "/nix/store/$NIXPKG/bin/nix" \\\',
-        "    --extra-experimental-features 'nix-command flakes' \\",
-        "    --option substituters 'https://cache.nixos.org' \\",
-        '    --option ssl-cert-file "$CACERT" \\\',
-        "    --option use-sqlite-wal false \\",
-        "    --option build-users-group ''" + (" \\\n    " + nix_args if arguments else ""),
+        command,
     ]
     return "\n".join(lines) + "\n"
 
