@@ -1,9 +1,23 @@
 *.zip
 *.tar
+*.tar.gz
 *.deb
 *.apk
 ghidra_*/
 native/
+build/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local deployment configuration and state
+config/runtime.json
+runtime.json
+state/
+*.state
+*.pid
+*.sock
 
 # Local secrets / credentials
 .env
@@ -18,6 +32,7 @@ id_ed25519
 known_hosts
 *_token*
 *_secret*
+*.authkey
 
 # Raw operational logs stay local; commit only redacted proof logs.
 docs/proof/raw/
