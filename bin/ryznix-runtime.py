@@ -84,11 +84,11 @@ def render_boot(config: dict[str, Any]) -> str:
             '"$BB" mkdir -p "$RUN"',
             'if ! { ps -A 2>/dev/null || ps; } | "$BB" grep -q "[d]s-server"; then',
             '  "$BB" rm -f "$RUN/ds.req"',
-            '  setsid sh -c "while true; do \\\"$DS\\\"; sleep 1; done" </dev/null >/dev/null 2>&1 &',
+            '  setsid sh -c "while true; do \"$DS\"; sleep 1; done" </dev/null >/dev/null 2>&1 &',
             "fi",
             'if ! { ps -A 2>/dev/null || ps; } | "$BB" grep -q "[p]m-server"; then',
             '  "$BB" rm -f "$RUN/pm.req"',
-            '  setsid sh -c "while true; do \\\"$PM\\\"; sleep 1; done" </dev/null >/dev/null 2>&1 &',
+            '  setsid sh -c "while true; do \"$PM\"; sleep 1; done" </dev/null >/dev/null 2>&1 &',
             "fi",
             '"$BB" sleep 1',
             'export LD_LIBRARY_PATH="$T/lib:$T/termux/lib:$T/system/usr/lib"',
@@ -100,7 +100,12 @@ def render_boot(config: dict[str, Any]) -> str:
     )
 
 
+def strip_separator(arguments: list[str]) -> list[str]:
+    return arguments[1:] if arguments[:1] == ["--"] else arguments
+
+
 def render_shell(config: dict[str, Any], command: list[str]) -> str:
+    command = strip_separator(command)
     lines = [render_boot(config)]
     if command:
         command_text = shlex.join(command)
@@ -116,17 +121,19 @@ def render_shell(config: dict[str, Any], command: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def validate_kernel_args(action: str, arguments: list[str]) -> None:
+def validate_kernel_args(action: str, arguments: list[str]) -> list[str]:
+    arguments = strip_separator(arguments)
     if action not in ALLOWED_KERNEL_ACTIONS:
         raise RuntimeError_(f"unsupported kernel action: {action}")
     if action in {"route", "exec"} and not arguments:
         raise RuntimeError_(f"kernel action {action} requires a target")
     if action in {"status", "heal"} and arguments:
         raise RuntimeError_(f"kernel action {action} accepts no extra arguments")
+    return arguments
 
 
 def render_kernel(config: dict[str, Any], action: str, arguments: list[str]) -> str:
-    validate_kernel_args(action, arguments)
+    arguments = validate_kernel_args(action, arguments)
     executable = require_remote_path(config["ryzkern"], "ryzkern")
     return "exec " + shlex.join([executable, action, *arguments]) + "\n"
 
