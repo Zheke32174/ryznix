@@ -1,35 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# ryznix — instantly launch the Ryznix microkernel super-linux from Termux.
-#   bionic + glibc + musl (+ qemu cross-arch), ryz/MINIX tmp-kernel, /data/local/tmp, no root.
-# Usage: ~/ryznix            -> boot subsystem + interactive super-linux shell
-#        ~/ryznix <cmd...>   -> boot + run one command in super-linux
-RISH="$HOME/rish"
-[ -x "$RISH" ] || { echo "ryznix: $RISH missing (Shizuku/rish not set up)"; exit 1; }
-ARGS="$*"
-{
-cat <<'BOOT'
-T=/data/local/tmp; BB=$T/busybox; RUN=$T/run
-if [ "$(id -u)" != "2000" ]; then echo "ryznix: not shell uid 2000 — is Shizuku running?"; exit 1; fi
-$BB mkdir -p $RUN
-# --- boot microkernel servers under RS supervision if not already up ---
-if ! ps -A 2>/dev/null | $BB grep -q "[d]s-server"; then $BB rm -f $RUN/ds.req; setsid sh -c "while true; do $T/ds-server; sleep 1; done" >/dev/null 2>&1 </dev/null & fi
-if ! ps -A 2>/dev/null | $BB grep -q "[p]m-server"; then $BB rm -f $RUN/pm.req; setsid sh -c "while true; do $T/pm-server; sleep 1; done" >/dev/null 2>&1 </dev/null & fi
-$BB sleep 1
-# --- environment (merged strata) ---
-U=$T/ubuntu
-export LD_LIBRARY_PATH=$T/lib:$T/termux/lib:$T/system/usr/lib
-export PATH=$U/usr/local/bin:$U/usr/bin:$U/bin:$U/usr/sbin:$U/sbin:$T:$T/bin:$T/termux/bin:/system/bin:/system/xbin
-export HOME=$U/root TERM=${TERM:-xterm-256color}
-[ -f $U/super-profile.sh ] && . $U/super-profile.sh
-BOOT
-if [ -n "$ARGS" ]; then
-  printf 'exec $U/usr/bin/bash --norc -c %q\n' "$ARGS"
-else
-  printf '%s\n' \
-    'echo "  ╔══════════════════════════════════════════════╗"' \
-    'echo "  ║  RYZNIX — bionic+glibc+musl, ryz/MINIX kernel ║"' \
-    'echo "  ║  microkernel up | strata: ubuntu termux musl  ║"' \
-    'echo "  ╚══════════════════════════════════════════════╝"' \
-    'exec $U/usr/bin/bash --norc -i </dev/tty'
-fi
-} | "$RISH"
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$HERE/ryznix-runtime.py" shell -- "$@"

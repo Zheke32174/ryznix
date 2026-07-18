@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax and contracts
+        run: |
+          python -m py_compile bin/ryznix-runtime.py bin/nixp.py tests/test_runtime.py tests/test_nixp.py
+          python -m json.tool runtime.contract.json >/dev/null
+          python -m json.tool config/runtime.example.json >/dev/null
+          bash -n bin/ryznix bin/rk bin/nixp
+      - name: Offline runtime tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Supported-boundary invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s VERSION
+          grep -Fq '"authoritative_kernel": "android-linux-kernel"' runtime.contract.json
+          grep -Fq '"nix_compatibility_launcher_uses_proot": true' config/runtime.example.json
+          ! grep -RInE '[0-9a-df-np-sv-z]{32}-(glibc|nix|nss-cacert)' bin/ryznix-runtime.py bin/nixp.py config/runtime.example.json
+          ! grep -RInE 'ARGS="\$\*"|printf .*%s.*\$ARGS' bin/ryznix bin/rk bin/nixp bin/ryznix-runtime.py bin/nixp.py
+          ! grep -Fq 'branches:' .github/workflows/release.yml
+          ! grep -Fq 'branches:' .github/workflows/publish-ghcr.yml
+          ! grep -Fq 'value=latest' .github/workflows/publish-ghcr.yml
+      - name: Build package image
+        run: docker build --build-arg VERSION=dev -f Dockerfile.package .

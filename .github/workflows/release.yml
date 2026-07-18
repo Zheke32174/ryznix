@@ -2,57 +2,55 @@ name: Release
 
 on:
   push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version/tag, for example v0.1.0'
-        required: false
-        default: 'v0.1.0'
+    tags: ['v*']
 
 permissions:
   contents: write
-  packages: read
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve version
-        id: version
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify release identity and tests
         shell: bash
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION" ]; then VERSION="v0.1.0"; fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Write release notes
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+          python -m py_compile bin/ryznix-runtime.py bin/nixp.py
+          python -m unittest discover -s tests -p 'test_*.py' -v
+          python -m json.tool runtime.contract.json >/dev/null
+          python -m json.tool config/runtime.example.json >/dev/null
+      - name: Build reviewed source package
         shell: bash
         run: |
-          NAME="${GITHUB_REPOSITORY#*/}"
-          IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]'):latest"
-          cat > RELEASE_NOTES.md <<EOF
-          # $NAME ${{ steps.version.outputs.version }}
-
-          Public showcase release for $NAME.
-
-          GitHub Package:
-          \`$IMAGE\`
-
-          GitHub also provides source ZIP and source tarball assets automatically on this Release.
-          EOF
-
-      - name: Create or update GitHub Release
+          set -euo pipefail
+          VERSION=$(cat VERSION)
+          STAGE="build/ryznix-$VERSION"
+          mkdir -p "$STAGE/bin" "$STAGE/config" "$STAGE/docs/proof"
+          cp VERSION README.md SHOWCASE.md runtime.contract.json "$STAGE/"
+          cp bin/ryznix-runtime.py bin/nixp.py bin/ryznix bin/rk bin/nixp "$STAGE/bin/"
+          cp config/runtime.example.json "$STAGE/config/"
+          cp docs/publication-checklist.md "$STAGE/docs/"
+          cp docs/proof/README.md "$STAGE/docs/proof/"
+          find "$STAGE" -exec touch -h -d "@$(git log -1 --format=%ct)" {} +
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+            --mtime="@$(git log -1 --format=%ct)" \
+            -C build -czf "ryznix-$VERSION-source-contract.tar.gz" "ryznix-$VERSION"
+          sha256sum "ryznix-$VERSION-source-contract.tar.gz" > "ryznix-$VERSION-source-contract.tar.gz.sha256"
+      - name: Publish immutable release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release edit "$VERSION" --target "$GITHUB_SHA" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
-          else
-            gh release create "$VERSION" --target "$GITHUB_SHA" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
-          fi
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "ryznix-$(cat VERSION)-source-contract.tar.gz" \
+            "ryznix-$(cat VERSION)-source-contract.tar.gz.sha256" \
+            --target "$GITHUB_SHA" \
+            --verify-tag \
+            --generate-notes \
+            --title "Ryznix $GITHUB_REF_NAME"
