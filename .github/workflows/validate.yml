@@ -1,0 +1,56 @@
+name: Validate Ryznix repository
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ryznix-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  non-device-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Parse tracked shell entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          while IFS= read -r -d '' file; do
+            first=$(head -n 1 -- "$file" 2>/dev/null || true)
+            if [[ "$file" == *.sh || "$first" == *bash* || "$first" == *'/sh'* ]]; then
+              if ! bash -n -- "$file"; then
+                printf 'shell syntax failed: %s\n' "$file" >&2
+                failures=$((failures + 1))
+              fi
+            fi
+          done < <(git ls-files -z)
+          ((failures == 0))
+      - name: Compile tracked Python sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(git ls-files -z '*.py')
+          if ((${#files[@]})); then
+            python3 -m py_compile "${files[@]}"
+          fi
+      - name: Check secret scanner syntax
+        run: |
+          bash -n scripts/check-secrets.sh
+          bash -n tests/test_check_secrets.sh
+      - name: Run secret scanner fixture tests
+        run: bash tests/test_check_secrets.sh
+      - name: Scan the tracked publication tree
+        run: bash scripts/check-secrets.sh .
+      - name: Verify publication boundary files
+        run: |
+          test -s docs/publication-checklist.md
+          test -s docs/proof/README.md
+          test -s MODOS_COMPONENT.yaml
+          grep -F 'failurePolicy:' MODOS_COMPONENT.yaml
+          grep -F 'promotionPolicy:' MODOS_COMPONENT.yaml
