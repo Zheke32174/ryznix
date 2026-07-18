@@ -1,0 +1,36 @@
+{
+  "schema": "ryznix.runtime-contract/v1",
+  "version_file": "VERSION",
+  "canonical_config_schema": "ryznix.runtime/v1",
+  "frontends": {
+    "userspace": "bin/ryznix-runtime.py",
+    "nix_compatibility": "bin/nixp.py"
+  },
+  "authoritative_kernel": "android-linux-kernel",
+  "ryznix_role": "rootless-userspace-control-plane",
+  "authority": {
+    "android_uid": 2000,
+    "root": false,
+    "bootloader": false,
+    "kernel_module": false,
+    "selinux_policy": false,
+    "device_driver": false
+  },
+  "runtime_modes": {
+    "core": {
+      "proot": false,
+      "description": "native and emulated userspace strata coordinated through shell-uid services"
+    },
+    "nix_compatibility": {
+      "proot": true,
+      "description": "optional path-translation boundary used only to expose a literal /nix/store"
+    }
+  },
+  "supported_kernel_requests": ["status", "heal", "route", "exec"],
+  "release": {
+    "tag_must_match_version": true,
+    "branch_push_publishes_release": false,
+    "branch_push_publishes_latest_image": false
+  },
+  "status": "device-proven-research-runtime-not-general-distribution"
+}

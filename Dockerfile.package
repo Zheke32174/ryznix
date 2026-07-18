@@ -1,16 +1,23 @@
 FROM alpine:3.20
 
-ARG REPO_NAME="ryznix"
+ARG VERSION=dev
 ARG SOURCE_URL="https://github.com/Zheke32174/ryznix"
-ARG VERSION="0.1.0"
 
-LABEL org.opencontainers.image.title="ryznix"
-LABEL org.opencontainers.image.description="Ryznix public showcase source package for GitHub Packages."
+LABEL org.opencontainers.image.title="Ryznix"
+LABEL org.opencontainers.image.description="Ryznix public source, MODOS contract, and publication-evidence package"
 LABEL org.opencontainers.image.source="$SOURCE_URL"
 LABEL org.opencontainers.image.version="$VERSION"
 
-WORKDIR /opt/package
-COPY . /opt/package
-RUN chmod -R a+rX /opt/package
+RUN addgroup -S ryznix && adduser -S -G ryznix -h /home/ryznix ryznix
 
-CMD ["sh", "-lc", "echo 'ryznix package mounted at /opt/package'; find /opt/package -maxdepth 2 -type f | sort | head -200"]
+WORKDIR /opt/ryznix
+COPY VERSION README.md SHOWCASE.md MODOS_COMPONENT.yaml /opt/ryznix/
+COPY docs/publication-checklist.md /opt/ryznix/docs/publication-checklist.md
+COPY docs/proof/README.md /opt/ryznix/docs/proof/README.md
+
+RUN test "$VERSION" = "dev" || test "$VERSION" = "v$(cat VERSION)" \
+    && chmod -R a=rX,u+w /opt/ryznix \
+    && chown -R ryznix:ryznix /opt/ryznix
+
+USER ryznix
+CMD ["sh", "-lc", "echo 'Ryznix reviewed package mounted at /opt/ryznix'; find /opt/ryznix -type f | sort"]
