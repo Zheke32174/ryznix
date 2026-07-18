@@ -1,27 +1,23 @@
-FROM python:3.12-alpine
+FROM alpine:3.20
 
 ARG VERSION=dev
 ARG SOURCE_URL="https://github.com/Zheke32174/ryznix"
 
 LABEL org.opencontainers.image.title="Ryznix"
-LABEL org.opencontainers.image.description="Ryznix public source and runtime-contract package"
+LABEL org.opencontainers.image.description="Ryznix public source, MODOS contract, and publication-evidence package"
 LABEL org.opencontainers.image.source="$SOURCE_URL"
 LABEL org.opencontainers.image.version="$VERSION"
 
 RUN addgroup -S ryznix && adduser -S -G ryznix -h /home/ryznix ryznix
-WORKDIR /opt/ryznix
 
-COPY VERSION README.md SHOWCASE.md runtime.contract.json /opt/ryznix/
-COPY config/runtime.example.json /opt/ryznix/config/runtime.example.json
-COPY bin/ryznix-runtime.py bin/nixp.py /opt/ryznix/bin/
+WORKDIR /opt/ryznix
+COPY VERSION README.md SHOWCASE.md MODOS_COMPONENT.yaml /opt/ryznix/
 COPY docs/publication-checklist.md /opt/ryznix/docs/publication-checklist.md
 COPY docs/proof/README.md /opt/ryznix/docs/proof/README.md
 
 RUN test "$VERSION" = "dev" || test "$VERSION" = "v$(cat VERSION)" \
-    && python3 -m py_compile /opt/ryznix/bin/ryznix-runtime.py /opt/ryznix/bin/nixp.py \
-    && python3 -m json.tool /opt/ryznix/runtime.contract.json >/dev/null \
-    && python3 -m json.tool /opt/ryznix/config/runtime.example.json >/dev/null \
+    && chmod -R a=rX,u+w /opt/ryznix \
     && chown -R ryznix:ryznix /opt/ryznix
 
 USER ryznix
-CMD ["python3", "/opt/ryznix/bin/ryznix-runtime.py", "--help"]
+CMD ["sh", "-lc", "echo 'Ryznix reviewed package mounted at /opt/ryznix'; find /opt/ryznix -type f | sort"]

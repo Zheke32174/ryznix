@@ -12,35 +12,31 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Verify release identity and tests
+      - name: Verify release identity
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
-          python -m py_compile bin/ryznix-runtime.py bin/nixp.py
-          python -m unittest discover -s tests -p 'test_*.py' -v
-          python -m json.tool runtime.contract.json >/dev/null
-          python -m json.tool config/runtime.example.json >/dev/null
+          test -s MODOS_COMPONENT.yaml
+          test -s docs/publication-checklist.md
+          test -s docs/proof/README.md
       - name: Build reviewed source package
         shell: bash
         run: |
           set -euo pipefail
           VERSION=$(cat VERSION)
+          EPOCH=$(git log -1 --format=%ct)
           STAGE="build/ryznix-$VERSION"
-          mkdir -p "$STAGE/bin" "$STAGE/config" "$STAGE/docs/proof"
-          cp VERSION README.md SHOWCASE.md runtime.contract.json "$STAGE/"
-          cp bin/ryznix-runtime.py bin/nixp.py bin/ryznix bin/rk bin/nixp "$STAGE/bin/"
-          cp config/runtime.example.json "$STAGE/config/"
+          mkdir -p "$STAGE/docs/proof"
+          cp VERSION README.md SHOWCASE.md MODOS_COMPONENT.yaml "$STAGE/"
           cp docs/publication-checklist.md "$STAGE/docs/"
           cp docs/proof/README.md "$STAGE/docs/proof/"
-          find "$STAGE" -exec touch -h -d "@$(git log -1 --format=%ct)" {} +
+          find "$STAGE" -exec touch -h -d "@$EPOCH" {} +
           tar --sort=name --owner=0 --group=0 --numeric-owner \
-            --mtime="@$(git log -1 --format=%ct)" \
+            --mtime="@$EPOCH" \
             -C build -czf "ryznix-$VERSION-source-contract.tar.gz" "ryznix-$VERSION"
           sha256sum "ryznix-$VERSION-source-contract.tar.gz" > "ryznix-$VERSION-source-contract.tar.gz.sha256"
+          sha256sum -c "ryznix-$VERSION-source-contract.tar.gz.sha256"
       - name: Publish immutable release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
