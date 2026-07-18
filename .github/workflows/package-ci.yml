@@ -1,0 +1,45 @@
+name: Package CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify publication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s VERSION
+          test -s MODOS_COMPONENT.yaml
+          test -s docs/publication-checklist.md
+          test -s docs/proof/README.md
+          ! grep -Fq 'branches:' .github/workflows/publish-ghcr.yml
+          ! grep -Fq 'branches:' .github/workflows/release.yml
+          ! grep -Fq 'value=latest' .github/workflows/publish-ghcr.yml
+          grep -Fq 'test "$GITHUB_REF_NAME" = "v$(cat VERSION)"' .github/workflows/publish-ghcr.yml
+          grep -Fq 'test "$GITHUB_REF_NAME" = "v$(cat VERSION)"' .github/workflows/release.yml
+      - name: Build minimal package image
+        run: docker build -t ryznix-package:test --build-arg VERSION=dev -f Dockerfile.package .
+      - name: Verify non-root package contents
+        run: |
+          docker run --rm ryznix-package:test sh -lc '
+            test "$(id -u)" -ne 0
+            test -s /opt/ryznix/VERSION
+            test -s /opt/ryznix/README.md
+            test -s /opt/ryznix/SHOWCASE.md
+            test -s /opt/ryznix/MODOS_COMPONENT.yaml
+            test -s /opt/ryznix/docs/publication-checklist.md
+            test -s /opt/ryznix/docs/proof/README.md
+            test "$(find /opt/ryznix -type f | wc -l)" -eq 6
+          '
