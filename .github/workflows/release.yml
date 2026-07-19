@@ -2,13 +2,13 @@ name: Release
 
 on:
   push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version/tag, for example v0.1.0'
-        required: false
+        description: 'Existing release tag, for example v0.1.0'
+        required: true
         default: 'v0.1.0'
 
 permissions:
@@ -20,39 +20,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Resolve version
+      - name: Resolve and verify version tag
         id: version
         shell: bash
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION" ]; then VERSION="v0.1.0"; fi
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="$GITHUB_REF_NAME"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          case "$VERSION" in
+            v*) ;;
+            *) echo "Version must begin with v" >&2; exit 1 ;;
+          esac
+          git rev-parse --verify "refs/tags/$VERSION" >/dev/null
+          TARGET="$(git rev-list -n 1 "$VERSION")"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
 
       - name: Write release notes
         shell: bash
         run: |
           NAME="${GITHUB_REPOSITORY#*/}"
-          IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]'):latest"
           cat > RELEASE_NOTES.md <<EOF
           # $NAME ${{ steps.version.outputs.version }}
 
-          Public showcase release for $NAME.
+          Verified tagged release for $NAME.
 
-          GitHub Package:
-          \`$IMAGE\`
-
-          GitHub also provides source ZIP and source tarball assets automatically on this Release.
+          GitHub provides source ZIP and source tarball assets automatically on this Release.
           EOF
 
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ steps.version.outputs.target }}
         shell: bash
         run: |
           if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release edit "$VERSION" --target "$GITHUB_SHA" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
+            gh release edit "$VERSION" --target "$TARGET" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
           else
-            gh release create "$VERSION" --target "$GITHUB_SHA" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
+            gh release create "$VERSION" --verify-tag --target "$TARGET" --title "${GITHUB_REPOSITORY#*/} $VERSION" --notes-file RELEASE_NOTES.md
           fi
